@@ -1,0 +1,174 @@
+# Elite Cuts Barbershop - WordPress Theme
+## Quick Installation Guide
+
+---
+
+## INSTALLATION STEPS
+
+### Step 1: Upload & Activate Theme
+
+1. **Download** the `elite-cuts-theme.zip` file
+2. Go to your **WordPress Admin Dashboard**
+3. Navigate to **Appearance > Themes > Add New**
+4. Click **Upload Theme** button
+5. Choose the `elite-cuts-theme.zip` file
+6. Click **Install Now**
+7. Click **Activate** when installation completes
+
+---
+
+### Step 2: Set Homepage
+
+1. Go to **Pages > Add New**
+2. Title: "Home"
+3. Don't add any content
+4. Click **Publish**
+5. Go to **Settings > Reading**
+6. Select "A static page"
+7. Choose "Home" as Homepage
+8. **Save Changes**
+
+---
+
+### Step 3: Create Navigation Menu
+
+1. Go to **Appearance > Menus**
+2. Create new menu: "Primary Menu"
+3. Add Custom Links:
+   - **Home**: #home
+   - **Our Barbers**: #barbers
+   - **Services**: #services
+   - **Book Now**: #appointment
+   - **Loyalty**: #loyalty
+4. Assign to **Primary Menu** location
+5. **Save Menu**
+
+---
+
+### Step 4: Add Contact Information
+
+1. Go to **Appearance > Customize**
+2. Open **Contact Information** section
+3. Fill in:
+   - Phone Number
+   - Email Address
+   - Physical Address
+   - Business Hours
+4. Open **Social Media** section
+5. Add your social media URLs
+6. Click **Publish**
+
+---
+
+### Step 5: Add Barbers
+
+1. Go to **Barbers > Add New Barber**
+2. Enter barber name as title
+3. Add description in editor
+4. Set featured image (barber photo)
+5. Fill **Barber Details**:
+   - Experience: "Master Barber with 10+ years"
+   - Specialties: "Fades, Beard Trims, Classic Cuts"
+6. Click **Publish**
+7. Repeat for all barbers
+
+---
+
+### Step 6: Add Services
+
+1. Go to **Services > Add New Service**
+2. Enter service name as title
+3. Add description
+4. Fill **Service Details**:
+   - Price: 35 (numbers only)
+   - Icon: fas fa-cut
+5. Click **Publish**
+6. Repeat for all services
+
+**Icon Options:**
+- Haircut: `fas fa-cut`
+- Beard: `fas fa-user-tie`
+- Shave: `fas fa-spa`
+- Premium: `fas fa-crown`
+
+---
+
+### Step 7: View Your Site
+
+Visit your website homepage to see the complete barbershop site with:
+- Hero section
+- Barber profiles
+- Service listings
+- Booking form
+- Loyalty program
+
+---
+
+## MANAGING APPOINTMENTS
+
+All customer appointments appear in:
+**WordPress Admin > Appointments**
+
+View details:
+- Customer name & phone
+- Selected barber
+- Selected service
+- Date & time
+
+---
+
+## CUSTOMIZATION
+
+### Change Colors
+Edit `style.css` lines 9-15:
+```css
+:root {
+    --primary: #1a1a2e;
+    --accent: #e94560;
+}
+```
+
+### Change Hero Image
+Edit `style.css` line 121
+
+---
+
+## OPTIONAL SETTINGS
+
+### Enable User Registration
+1. Go to **Settings > General**
+2. Check "Anyone can register"
+3. Save Changes
+
+### Recommended Plugins
+- Contact Form 7
+- Yoast SEO
+- Wordfence Security
+
+---
+
+## SUPPORT
+
+For issues or questions:
+- Check README.md for detailed documentation
+- Review troubleshooting section
+- Test on different browsers
+
+---
+
+## WHAT'S INCLUDED
+
+✅ Responsive design
+✅ Custom post types (Barbers, Services)
+✅ AJAX booking system
+✅ Loyalty program section
+✅ WordPress native authentication
+✅ Font Awesome icons
+✅ Mobile-friendly
+✅ Customizer integration
+
+---
+
+**You're all set! Your barbershop website is ready to accept bookings.**
+
+Visit your site to see it in action!
