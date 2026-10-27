@@ -1,0 +1,17 @@
+name = "elite-cuts-api"
+main = "src/index.js"
+compatibility_date = "2025-10-01"
+
+# Create the namespace once, then paste the returned id below:
+#   npx wrangler kv namespace create BOOKINGS
+[[kv_namespaces]]
+binding = "BOOKINGS"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"
+
+[vars]
+# Origin of the static Pages site allowed to call this API. "*" allows any origin.
+ALLOWED_ORIGIN = "*"
+
+# Secrets (NOT stored here — set with `npx wrangler secret put <NAME>`):
+#   MANAGER_PIN            required — PIN for /api/manager/login
+#   STRIPE_WEBHOOK_SECRET  optional — enables signature checks on /api/webhook/stripe

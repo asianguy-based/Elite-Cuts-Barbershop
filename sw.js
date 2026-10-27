@@ -1,12 +1,11 @@
-const CACHE_NAME = 'elite-cuts-h5-v1.0.0';
+const CACHE_NAME = 'elite-cuts-h5-v1.1.0';
 const APP_SHELL = [
   './',
   './index.html',
-  './manifest.json',
-  'https://cdn.tailwindcss.com',
-  'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css',
-  'https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap'
+  './manifest.json'
 ];
+// Cross-origin CDN assets (Tailwind, Font Awesome, Google Fonts) are NOT pre-cached:
+// cache.addAll() rejects on any opaque/failed response. They get cached on first fetch below.
 
 // 1. Install & Pre-cache App Shell
 self.addEventListener('install', (event) => {
@@ -36,8 +35,11 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const { request } = event;
 
-  // Always bypass cache for POST requests or live WordPress REST API endpoints
-  if (request.method !== 'GET' || request.url.includes('/wp-json/')) {
+  // Backend API calls are always network-only (never served from cache)
+  if (request.url.includes('/api/')) return;
+
+  // Always bypass cache for non-GET requests
+  if (request.method !== 'GET') {
     return;
   }
 

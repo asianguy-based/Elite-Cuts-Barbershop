@@ -384,9 +384,9 @@
       </div>
 
       <div id="adminPinGate" class="space-y-3 py-2">
-        <p class="text-xs text-gray-300">Enter Manager PIN to access live appointments, barber folders, and loyalty spreadsheets <span class="text-accent">(Demo PIN: 1234)</span>.</p>
+        <p class="text-xs text-gray-300">Enter Manager PIN to access live appointments, barber folders, and loyalty spreadsheets <span id="adminPinHint" class="text-accent">(Demo mode — set an API URL in Settings for a real PIN. Demo PIN: 1234)</span>.</p>
         <div class="flex gap-2">
-          <input type="password" id="adminPinInput" placeholder="Enter PIN (1234)" class="flex-1 rounded-xl bg-primary border border-white/15 px-3.5 py-2 text-sm text-white" />
+          <input type="password" id="adminPinInput" placeholder="Enter PIN" class="flex-1 rounded-xl bg-primary border border-white/15 px-3.5 py-2 text-sm text-white" />
           <button onclick="unlockAdmin()" class="px-5 py-2 rounded-xl gold-gradient text-[#1a1a2e] font-bold text-xs">Unlock</button>
         </div>
       </div>
@@ -461,8 +461,16 @@
               <input type="color" id="cfgAccentColor" class="w-full h-9 rounded-lg bg-primary border border-white/15 p-1" />
             </div>
           </div>
+          <div>
+            <label class="block text-[11px] text-gray-400 mb-1">Deposit Payment Link URL (Stripe / Square)</label>
+            <input type="url" id="cfgPaymentLinkUrl" placeholder="https://buy.stripe.com/..." class="w-full rounded-lg bg-primary border border-white/15 px-3 py-1.5 text-xs text-white" />
+          </div>
+          <div>
+            <label class="block text-[11px] text-gray-400 mb-1">API URL (Cloudflare Worker) — leave blank for demo mode</label>
+            <input type="url" id="cfgApiBaseUrl" placeholder="https://elite-cuts-api.your-subdomain.workers.dev" class="w-full rounded-lg bg-primary border border-white/15 px-3 py-1.5 text-xs text-white" />
+          </div>
           <button onclick="saveWhiteLabelConfig()" class="w-full py-2.5 rounded-xl gold-gradient text-[#1a1a2e] font-bold text-xs">
-            Apply Branding Settings
+            Apply Settings
           </button>
         </div>
 
@@ -495,6 +503,7 @@
       licenseKey: 'EC-ENTERPRISE-LICENSE-ACTIVE',
       depositAmount: 15,
       paymentLinkUrl: '',
+      apiBaseUrl: '',
       requireDeposit: false,
       services: [
         { id: 'srv-1', name: 'The Executive Cut & Style', price: 45, duration: 45, category: 'Hair', desc: 'Precision scissor or skin fade, hot lather neck shave & invigorating wash.' },
@@ -529,7 +538,7 @@
       refCode: ''
     };
 
-    // ZERO-TRUST CLIENT-SIDE ENCRYPTED VAULT WITH 30-MIN HASH ROTATION
+    // Local obfuscated cache (not encryption) — XOR + base64 keyed on phone + 30-min window
     const LoyaltyVault = {
       encryptData(rawData, phonePin) {
         const timeWindowHash = Math.floor(Date.now() / (1000 * 60 * 30)); // Rotates every 30 mins
@@ -577,6 +586,27 @@
         return this.decryptData(token, pin) || { points: 0, stamps: 0, history: [] };
       }
     };
+
+    // BACKEND API (Cloudflare Worker). Returns null when no apiBaseUrl is set = demo/localStorage mode.
+    const MANAGER_TOKEN_KEY = 'EC_MANAGER_TOKEN';
+    function apiConfigured() {
+      return !!(shopConfig.apiBaseUrl && shopConfig.apiBaseUrl.trim());
+    }
+    async function api(path, opts = {}) {
+      if (!apiConfigured()) return null;
+      const base = shopConfig.apiBaseUrl.trim().replace(/\/+$/, '');
+      const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
+      const token = sessionStorage.getItem(MANAGER_TOKEN_KEY);
+      if (token) headers['X-Manager-Token'] = token;
+      const res = await fetch(base + path, {
+        method: opts.method || 'GET',
+        headers,
+        body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined
+      });
+      const isJson = (res.headers.get('content-type') || '').includes('application/json');
+      const data = isJson ? await res.json().catch(() => ({})) : await res.text();
+      return { ok: res.ok, status: res.status, data };
+    }
 
     function applyThemeVariables() {
       document.documentElement.style.setProperty('--primary', shopConfig.primaryColor || '#1a1a2e');
@@ -773,6 +803,8 @@
       }).join('');
     }
 
+    let remoteBookedSlots = { key: '', times: [] };
+
     function renderTimeSlots() {
       const dateInput = document.getElementById('bookingDateInput');
       if (!dateInput.value) {
@@ -780,9 +812,24 @@
       }
       currentBooking.date = dateInput.value;
 
+      // When a backend is configured, fetch booked times for this date+barber once and re-render.
+      const slotKey = `${currentBooking.date}|${currentBooking.barberId}`;
+      if (apiConfigured() && remoteBookedSlots.key !== slotKey) {
+        remoteBookedSlots = { key: slotKey, times: [] };
+        api(`/api/slots?date=${encodeURIComponent(currentBooking.date)}&barberId=${encodeURIComponent(currentBooking.barberId)}`)
+          .then(res => {
+            if (res && res.ok && remoteBookedSlots.key === slotKey) {
+              remoteBookedSlots.times = res.data.booked || [];
+              renderTimeSlots();
+            }
+          })
+          .catch(err => console.warn('Slot fetch failed, using local data:', err));
+      }
+      const remoteTaken = apiConfigured() && remoteBookedSlots.key === slotKey ? remoteBookedSlots.times : [];
+
       const grid = document.getElementById('bookingTimeSlotsGrid');
       grid.innerHTML = shopConfig.timeSlots.map(slot => {
-        const isTaken = bookings.some(
+        const isTaken = remoteTaken.includes(slot) || bookings.some(
           b => b.barberId === currentBooking.barberId &&
                b.date === currentBooking.date &&
                b.time === slot &&
@@ -848,11 +895,11 @@
 
       const { totalCost, totalMin, selected } = updateBookingTotals();
       const barber = shopConfig.barbers.find(b => b.id === currentBooking.barberId) || shopConfig.barbers[0];
-      const refCode = 'EC-' + Math.floor(1000 + Math.random() * 9000);
+      let refCode = 'EC-' + Math.floor(1000 + Math.random() * 9000);
       const isDeposit = currentBooking.paymentMode === 'deposit';
       const pointsEarned = isDeposit ? 150 : 100;
 
-      const newBooking = {
+      let newBooking = {
         id: Date.now().toString(),
         refCode,
         services: selected.map(s => s.name),
@@ -869,23 +916,62 @@
         status: isDeposit ? 'Deposit Pending / Confirmed' : 'Confirmed'
       };
 
-      bookings.unshift(newBooking);
-      localStorage.setItem(STORAGE_KEY_BOOKINGS, JSON.stringify(bookings));
+      let pointsLabel = `+${pointsEarned} VIP PTS`;
+      if (apiConfigured()) {
+        // Backend mode: the Worker owns the booking, conflict check, and loyalty award.
+        let res;
+        try {
+          res = await api('/api/bookings', {
+            method: 'POST',
+            body: {
+              services: newBooking.services, totalCost, totalMin,
+              barberId: barber.id, barberName: barber.name,
+              date: currentBooking.date, time: currentBooking.time,
+              clientName: name, clientPhone: phone, notes,
+              paymentMode: currentBooking.paymentMode,
+              depositAmount: isDeposit ? (shopConfig.depositAmount || 15) : 0
+            }
+          });
+        } catch (err) {
+          alert('Could not reach the booking server. Please check your connection and try again.');
+          return;
+        }
+        if (res.status === 409) {
+          alert('That time was just taken — pick another');
+          remoteBookedSlots.key = '';
+          renderTimeSlots();
+          return;
+        }
+        if (!res.ok || !res.data.booking) {
+          alert('Booking failed: ' + ((res.data && res.data.error) || `server error ${res.status}`));
+          return;
+        }
+        newBooking = Object.assign({}, newBooking, res.data.booking, { depositPaid: 0 });
+        refCode = newBooking.refCode;
+        if (isDeposit) pointsLabel = `+${pointsEarned} VIP PTS pending until deposit is paid`;
+        // Local mirror only (receipt + offline slot hint); the server is the source of truth.
+        bookings.unshift(newBooking);
+        localStorage.setItem(STORAGE_KEY_BOOKINGS, JSON.stringify(bookings));
+        remoteBookedSlots.key = '';
+      } else {
+        bookings.unshift(newBooking);
+        localStorage.setItem(STORAGE_KEY_BOOKINGS, JSON.stringify(bookings));
 
-      // Update Encrypted Client Vault
-      const phoneKey = normalizePhone(phone);
-      let clientVault = LoyaltyVault.loadFromDevice(phoneKey);
-      clientVault.name = name;
-      clientVault.phone = phone;
-      clientVault.points = (clientVault.points || 0) + pointsEarned;
-      clientVault.stamps = ((clientVault.stamps || 0) + 1) % 11;
-      clientVault.history = clientVault.history || [];
-      clientVault.history.unshift(newBooking);
-      LoyaltyVault.saveToDevice(phoneKey, clientVault);
+        // Update local client cache
+        const phoneKey = normalizePhone(phone);
+        let clientVault = LoyaltyVault.loadFromDevice(phoneKey);
+        clientVault.name = name;
+        clientVault.phone = phone;
+        clientVault.points = (clientVault.points || 0) + pointsEarned;
+        clientVault.stamps = ((clientVault.stamps || 0) + 1) % 11;
+        clientVault.history = clientVault.history || [];
+        clientVault.history.unshift(newBooking);
+        LoyaltyVault.saveToDevice(phoneKey, clientVault);
 
-      // Also mirror to global loyalty DB for shop owner CSV export
-      loyaltyDB[phoneKey] = { name, phone, points: clientVault.points, stamps: clientVault.stamps };
-      localStorage.setItem(STORAGE_KEY_LOYALTY, JSON.stringify(loyaltyDB));
+        // Also mirror to global loyalty DB for shop owner CSV export
+        loyaltyDB[phoneKey] = { name, phone, points: clientVault.points, stamps: clientVault.stamps };
+        localStorage.setItem(STORAGE_KEY_LOYALTY, JSON.stringify(loyaltyDB));
+      }
 
       if (isDeposit && shopConfig.paymentLinkUrl) {
         const sep = shopConfig.paymentLinkUrl.includes('?') ? '&' : '?';
@@ -894,7 +980,7 @@
 
       currentBooking.lastConfirmed = newBooking;
       [1, 2, 3, 4].forEach(s => document.getElementById(`bookStep${s}`).classList.add('hidden'));
-      document.getElementById('receiptCode').textContent = `REF #${refCode} (+${pointsEarned} VIP PTS)`;
+      document.getElementById('receiptCode').textContent = `REF #${refCode} (${pointsLabel})`;
       document.getElementById('receiptDetailsText').textContent = `${selected.map(s => s.name).join(' + ')} with ${barber.name} on ${newBooking.date} at ${newBooking.time}.`;
       document.getElementById('bookConfirmation').classList.remove('hidden');
       document.getElementById('loyaltyLookupPhone').value = phone;
@@ -951,10 +1037,19 @@
       grid.innerHTML = html;
     }
 
-    function lookupLoyalty() {
+    async function lookupLoyalty() {
       const rawPhone = document.getElementById('loyaltyLookupPhone').value.trim();
       const key = normalizePhone(rawPhone);
-      const record = LoyaltyVault.loadFromDevice(key);
+      let record = LoyaltyVault.loadFromDevice(key);
+
+      if (apiConfigured() && key) {
+        try {
+          const res = await api(`/api/loyalty?phone=${encodeURIComponent(key)}`);
+          if (res && res.ok) record = res.data;
+        } catch (err) {
+          console.warn('Loyalty lookup failed, showing local cache:', err);
+        }
+      }
 
       document.getElementById('loyaltyPointsDisplay').textContent = `${record.points || 0} PTS`;
       document.getElementById('loyaltyStampsCount').textContent = `${record.stamps || 0} / 10 Cuts`;
@@ -962,22 +1057,36 @@
 
       const listEl = document.getElementById('clientAppointmentsList');
       if (!record.history || record.history.length === 0) {
-        listEl.innerHTML = `<div class="text-xs text-gray-400">No past haircut visits found in your encrypted device vault.</div>`;
+        listEl.innerHTML = `<div class="text-xs text-gray-400">No past haircut visits found for this number.</div>`;
         return;
       }
       listEl.innerHTML = record.history.map(b => `
         <div class="p-3 rounded-xl bg-secondary border border-white/10 flex justify-between items-center">
           <div>
-            <div class="text-xs font-bold text-white">${b.services.join(', ')}</div>
+            <div class="text-xs font-bold text-white">${(b.services || []).join(', ')}</div>
             <div class="text-[11px] text-gray-400">${b.date} @ ${b.time} • ${b.barberName}</div>
           </div>
-          <span class="text-[10px] px-2 py-0.5 rounded font-semibold bg-emerald-500/20 text-emerald-300">${b.status}</span>
+          <span class="text-[10px] px-2 py-0.5 rounded font-semibold bg-emerald-500/20 text-emerald-300">${b.status || b.refCode || ''}</span>
         </div>
       `).join('');
     }
 
     // EXPORT / IMPORT CSV
-    function exportLoyaltyCSV() {
+    async function exportLoyaltyCSV() {
+      if (apiConfigured()) {
+        try {
+          const res = await api('/api/manager/loyalty.csv');
+          if (!res.ok) { alert('CSV export failed (' + res.status + '). Are you logged in?'); return; }
+          const blob = new Blob([res.data], { type: 'text/csv;charset=utf-8;' });
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = `${shopConfig.shopName.toLowerCase().replace(/\s+/g, '-')}-vip-loyalty-database.csv`;
+          link.click();
+        } catch (err) {
+          alert('Could not reach the booking server for CSV export.');
+        }
+        return;
+      }
       let csv = 'Phone,Name,Points,Stamps\n';
       Object.keys(loyaltyDB).forEach(key => {
         const c = loyaltyDB[key];
@@ -1028,6 +1137,11 @@
       document.getElementById('cfgTagline').value = shopConfig.tagline;
       document.getElementById('cfgPrimaryColor').value = shopConfig.primaryColor || '#1a1a2e';
       document.getElementById('cfgAccentColor').value = shopConfig.accentColor || '#d4af37';
+      document.getElementById('cfgPaymentLinkUrl').value = shopConfig.paymentLinkUrl || '';
+      document.getElementById('cfgApiBaseUrl').value = shopConfig.apiBaseUrl || '';
+      document.getElementById('adminPinHint').textContent = apiConfigured()
+        ? '(Live mode — PIN is checked by the API server)'
+        : '(Demo mode — set an API URL in Settings for a real PIN. Demo PIN: 1234)';
       renderAdminQueue();
       renderAdminBarbers();
     }
@@ -1040,32 +1154,61 @@
       switchTab('home');
     }
 
-    function unlockAdmin() {
+    async function unlockAdmin() {
       const pin = document.getElementById('adminPinInput').value;
-      if (pin === '1234') {
-        document.getElementById('adminPinGate').classList.add('hidden');
-        document.getElementById('adminContent').classList.remove('hidden');
-        renderAdminQueue();
-        renderAdminBarbers();
-      } else {
-        alert('Invalid Manager PIN. Default demo PIN is 1234.');
+      if (apiConfigured()) {
+        let res;
+        try {
+          res = await api('/api/manager/login', { method: 'POST', body: { pin } });
+        } catch (err) {
+          alert('Could not reach the booking server to verify the PIN.');
+          return;
+        }
+        if (!res.ok || !res.data.token) {
+          alert('Invalid Manager PIN.');
+          return;
+        }
+        sessionStorage.setItem(MANAGER_TOKEN_KEY, res.data.token);
+      } else if (pin !== '1234') {
+        alert('Invalid Manager PIN. Demo mode — set an API URL in Settings for a real PIN (demo PIN is 1234).');
+        return;
       }
+      document.getElementById('adminPinGate').classList.add('hidden');
+      document.getElementById('adminContent').classList.remove('hidden');
+      renderAdminQueue();
+      renderAdminBarbers();
     }
 
-    function renderAdminQueue() {
-      document.getElementById('adminBookingCount').textContent = bookings.length;
+    let remoteBookings = null; // manager list loaded from the API (live mode only)
+
+    async function renderAdminQueue() {
+      let rows = bookings;
+      if (apiConfigured()) {
+        if (sessionStorage.getItem(MANAGER_TOKEN_KEY)) {
+          try {
+            const res = await api('/api/manager/bookings');
+            if (res.ok) remoteBookings = res.data.bookings || [];
+            else if (res.status === 401) sessionStorage.removeItem(MANAGER_TOKEN_KEY);
+          } catch (err) {
+            console.warn('Manager bookings fetch failed:', err);
+          }
+        }
+        rows = remoteBookings || [];
+      }
+      document.getElementById('adminBookingCount').textContent = rows.length;
       const list = document.getElementById('adminAppointmentsList');
-      if (bookings.length === 0) {
+      if (rows.length === 0) {
         list.innerHTML = `<div class="text-xs text-gray-400 py-1">No appointments in queue.</div>`;
         return;
       }
-      list.innerHTML = bookings.map(b => `
+      list.innerHTML = rows.map(b => `
         <div class="p-2.5 rounded-xl bg-primary border border-white/10 flex items-center justify-between text-xs">
           <div>
             <div class="font-bold text-white">${b.clientName} <span class="text-accent">(${b.refCode})</span></div>
-            <div class="text-[11px] text-gray-400">${b.date} ${b.time} • ${b.barberName}</div>
+            <div class="text-[11px] text-gray-400">${b.date} ${b.time} • ${b.barberName} • <span class="text-gray-300">${b.status || ''}</span></div>
           </div>
           <div class="flex gap-1">
+            ${apiConfigured() && b.paymentMode === 'deposit' && !b.paid ? `<button onclick="updateBookingStatus('${b.id}', 'Paid')" class="px-2 py-1 rounded bg-accent/20 text-accent text-[10px]">Paid</button>` : ''}
             <button onclick="updateBookingStatus('${b.id}', 'Completed')" class="px-2 py-1 rounded bg-emerald-500/20 text-emerald-300 text-[10px]">Done</button>
             <button onclick="updateBookingStatus('${b.id}', 'Cancelled')" class="px-2 py-1 rounded bg-rose-500/20 text-rose-300 text-[10px]">Cancel</button>
           </div>
@@ -1073,7 +1216,17 @@
       `).join('');
     }
 
-    function updateBookingStatus(id, status) {
+    async function updateBookingStatus(id, status) {
+      if (apiConfigured()) {
+        try {
+          const res = await api(`/api/manager/bookings/${encodeURIComponent(id)}`, { method: 'PATCH', body: { status } });
+          if (!res.ok) alert('Update failed: ' + ((res.data && res.data.error) || res.status));
+        } catch (err) {
+          alert('Could not reach the booking server to update this booking.');
+        }
+        renderAdminQueue();
+        return;
+      }
       bookings = bookings.map(b => b.id === id ? { ...b, status } : b);
       localStorage.setItem(STORAGE_KEY_BOOKINGS, JSON.stringify(bookings));
       renderAdminQueue();
@@ -1181,10 +1334,13 @@
       shopConfig.tagline = document.getElementById('cfgTagline').value.trim();
       shopConfig.primaryColor = document.getElementById('cfgPrimaryColor').value;
       shopConfig.accentColor = document.getElementById('cfgAccentColor').value;
+      shopConfig.paymentLinkUrl = document.getElementById('cfgPaymentLinkUrl').value.trim();
+      shopConfig.apiBaseUrl = document.getElementById('cfgApiBaseUrl').value.trim();
       localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(shopConfig));
+      remoteBookedSlots = { key: '', times: [] };
       applyThemeVariables();
       renderHome();
-      alert('Branding Updated!');
+      alert('Settings Updated!' + (apiConfigured() ? ' Live API mode is on.' : ' Demo mode (no API URL).'));
     }
 
     function exportConfigJSON() {
