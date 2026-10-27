@@ -1,27 +1,33 @@
-Page Title: About Us — Elite Cuts Barbershop
-Section 1: Our Story (Hero Copy)
-Tradition Meets Precision.
+# 💈 Elite Cuts Barbershop — Commercial H5 WebApp & White-Label PWA
 
-Founded with a commitment to the craft of classic barbering and modern grooming, Elite Cuts was built for the man who values his time as much as his look. We stripped away the waiting rooms, the clunky booking phone calls, and the friction of traditional barbershops to create a streamlined grooming lounge dedicated to sharp fades, hot lather shaves, and flawless execution.
+A turnkey, zero-dependency **Progressive Web App (PWA)** built for independent barbershops and agency resellers. It shifts away from heavy WordPress backends and clunky third-party booking marketplaces to provide a lightning-fast, mobile-first experience that clients install straight to their home screen.
 
-Section 2: Why We Built a Better Booking Experience
-Zero Wait. Zero Hassle.
+---
 
-We believe getting a haircut should be seamless from the moment you decide to clean up your look. That’s why we developed a custom mobile app experience—built to install straight to your phone's home screen in one tap.
+## ✨ Key Commercial Features
 
-Instant Chair Reservation: Book your preferred master barber, select combined services (cut, beard sculpt, and steam treatments), and lock in your chair in under 30 seconds.
+* **⚡ 100% Serverless Architecture:** Runs entirely on static hosting (Vercel, Cloudflare Pages, Netlify) with **$0/month** database or server maintenance costs.
+* **📱 Installable PWA:** One-tap home screen installation for iOS Safari and Android Chrome with instant offline app-shell caching via Service Workers (`sw.js`).
+* **🪑 4-Step Interactive Booking Engine:** Multi-service combining (cuts, beard sculpts, hot towels), real-time barber selection, date/time conflict locking, and instant `.ics` Calendar / SMS receipt generation.
+* **🛡️ No-Show Deposit Protection:** Built-in toggle for Stripe Payment Links or Square Checkout URLs to secure a $15 deposit before locking in prime weekend slots.
+* **🔒 Zero-Trust Client-Side Loyalty Vault:** Customer VIP points and 10-cut stamp balances are encrypted locally on their device with time-coded hashing, protecting user privacy and preventing tampering.
+* **📊 1-Tap CSV Spreadsheet Export:** Shop owners can download their entire client phone and loyalty database as a `.csv` file to inspect in Excel, Apple Numbers, or Google Sheets.
+* **📂 Automated Barber Folder Uploader:** Manager studio automatically organizes uploaded barber photos into clean incremental naming conventions (`firstname_lastname_001.jpg`).
+* **🔐 Hidden Manager Portal:** Securely hidden from consumer view and accessed via private URL route (`?portal=admin`, default PIN: `1234`).
 
-Fair No-Show Protection: To ensure our master barbers' time is respected and your preferred slot is always guaranteed, our secure deposit system protects your chair without the hassle.
+---
 
-Real-Time Calendar Sync: Instantly add your appointment to your Apple or Google Calendar with a single tap, complete with automated SMS reminders.
+## 🚀 Quick Deployment Guide
 
-Section 3: The VIP Grooming Club (Loyalty Rewards)
-Your 10th Executive Cut is On Us.
+1. Clone or download this repository.
+2. Drop `index.html`, `manifest.json`, and `sw.js` into your root directory.
+3. Deploy the folder instantly to **Cloudflare Pages** or **Vercel** with zero build commands required.
+4. Access your client storefront at `https://your-domain.com` and your manager portal at `https://your-domain.com/?portal=admin`.
 
-We reward loyalty. Every time you book a chair or check in with your mobile number, our encrypted digital punch card automatically updates your VIP balance.
+---
 
-Earn 100 to 150 VIP Points on every visit.
+## 💼 Licensing & Agency Reselling
 
-Automatically track your stamps toward our signature 10-Cut Free Executive Package.
-
-Access your past haircut preferences, style notes, and rewards balance instantly—no paper punch cards to lose.
+Designed for digital agencies and independent developers to white-label and license out to local barbers:
+* **White-Label Customization:** Change shop names, brand taglines, and primary/accent hex colors instantly in the Manager Studio.
+* **Zero Data Liability:** Store zero customer PII on remote servers—everything runs locally and securely on the client's device.
