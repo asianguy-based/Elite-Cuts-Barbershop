@@ -1,0 +1,1280 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='112' fill='%231a1a2e'/%3E%3Ctext x='50%25' y='56%25' dominant-baseline='middle' text-anchor='middle' font-family='serif' font-weight='bold' font-size='220' fill='%23d4af37'%3EEC%3C/text%3E%3C/svg%3E" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#1a1a2e" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>Elite Cuts Barbershop — H5 Booking & Loyalty WebApp</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #1a1a2e;
+      --secondary: #16213e;
+      --accent: #d4af37;
+      --accent-hover: #f3cc4d;
+      --surface: #22223b;
+      --text-light: #f8f9fa;
+    }
+    body {
+      font-family: 'Inter', sans-serif;
+      background-color: var(--primary);
+      color: var(--text-light);
+      -webkit-tap-highlight-color: transparent;
+      overscroll-behavior-y: none;
+    }
+    .font-brand { font-family: 'Cinzel', serif; }
+    .bg-primary { background-color: var(--primary); }
+    .bg-secondary { background-color: var(--secondary); }
+    .bg-surface { background-color: var(--surface); }
+    .text-accent { color: var(--accent); }
+    .bg-accent { background-color: var(--accent); }
+    .border-accent { border-color: var(--accent); }
+    .gold-gradient { background: linear-gradient(135deg, var(--accent) 0%, #b8860b 100%); }
+    .glass-card {
+      background: rgba(34, 34, 59, 0.78);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(212, 175, 55, 0.18);
+    }
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-view { animation: fadeIn 0.22s ease-out forwards; }
+  </style>
+</head>
+
+<body class="min-h-screen pb-24 selection:bg-[#d4af37] selection:text-[#1a1a2e]">
+
+  <!-- TOP APP HEADER (Secure: Management gear hidden, accessed via ?portal=admin) -->
+  <header class="sticky top-0 z-40 glass-card border-b border-white/10 px-4 py-3">
+    <div class="max-w-md mx-auto flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl gold-gradient flex items-center justify-center text-[#1a1a2e] font-bold shadow-lg">
+          <i class="fa-solid fa-scissors text-lg"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 id="headerShopName" class="font-brand font-bold text-base tracking-wider uppercase text-white">ELITE CUTS</h1>
+            <span id="openStatusBadge" class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-semibold">OPEN</span>
+          </div>
+          <p id="headerTagline" class="text-xs text-gray-400 truncate max-w-[200px]">Master Barbering & Grooming Lounge</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2">
+        <a id="headerPhoneBtn" href="tel:+15552345678" class="w-9 h-9 rounded-lg bg-white/5 hover:bg-white/10 flex items-center justify-center text-accent border border-white/10" title="Call Shop">
+          <i class="fa-solid fa-phone text-sm"></i>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- MAIN H5 CONTAINER -->
+  <main class="max-w-md mx-auto px-4 pt-4 space-y-6">
+
+    <!-- ================= VIEW 1: HOME / STOREFRONT ================= -->
+    <section id="view-home" class="space-y-6 animate-view">
+      <div class="relative rounded-2xl overflow-hidden border border-accent/30 shadow-2xl">
+        <div class="absolute inset-0 bg-gradient-to-t from-[#1a1a2e] via-[#1a1a2e]/75 to-transparent z-10"></div>
+        <img id="heroBannerImg" src="https://images.unsplash.com/photo-1585747860715-2ba37e788b70?auto=format&fit=crop&w=900&q=80" alt="Barbershop Interior" class="w-full h-56 object-cover" />
+        <div class="relative z-20 p-5 -mt-28">
+          <span class="inline-flex items-center gap-1.5 text-[11px] uppercase tracking-widest font-semibold px-2.5 py-1 rounded-md bg-black/60 text-accent border border-accent/40 mb-2">
+            <i class="fa-solid fa-crown text-[10px]"></i> <span id="heroBadgeText">Precision & Tradition</span>
+          </span>
+          <h2 id="heroTitle" class="font-brand text-2xl font-bold text-white leading-tight">Sharp Cuts. Classic Shaves. Zero Wait.</h2>
+          <p id="heroSubtitle" class="text-xs text-gray-300 mt-1.5">Book your chair in under 30 seconds and earn loyalty points on every visit.</p>
+          <div class="mt-4 flex gap-2.5">
+            <button onclick="switchTab('book')" class="flex-1 gold-gradient text-[#1a1a2e] font-bold text-sm py-3 px-4 rounded-xl shadow-lg flex items-center justify-center gap-2 active:scale-95 transition">
+              <i class="fa-regular fa-calendar-check"></i> Book Chair Now
+            </button>
+            <button onclick="switchTab('loyalty')" class="px-4 py-3 rounded-xl glass-card text-accent font-semibold text-sm border border-accent/40 flex items-center gap-1.5 active:scale-95 transition">
+              <i class="fa-solid fa-award"></i> VIP Pass
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-3 gap-2.5 text-center">
+        <div class="glass-card rounded-xl p-3">
+          <div class="text-accent font-bold text-base"><i class="fa-solid fa-star text-xs mr-1"></i>4.9</div>
+          <div class="text-[11px] text-gray-400">640+ Reviews</div>
+        </div>
+        <div class="glass-card rounded-xl p-3">
+          <div class="text-accent font-bold text-base" id="statBarberCount">3 Chairs</div>
+          <div class="text-[11px] text-gray-400">Master Barbers</div>
+        </div>
+        <div class="glass-card rounded-xl p-3">
+          <div class="text-accent font-bold text-base">10th Free</div>
+          <div class="text-[11px] text-gray-400">VIP Loyalty</div>
+        </div>
+      </div>
+
+      <div>
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-brand text-sm font-bold uppercase tracking-wider text-white">Signature Services</h3>
+          <button onclick="switchTab('book')" class="text-xs text-accent hover:underline">Book Any <i class="fa-solid fa-arrow-right text-[10px]"></i></button>
+        </div>
+        <div id="homeServicesList" class="space-y-2.5"></div>
+      </div>
+
+      <div>
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-brand text-sm font-bold uppercase tracking-wider text-white">Master Barbers</h3>
+          <span class="text-[11px] text-gray-400">Tap to book directly</span>
+        </div>
+        <div id="homeBarbersList" class="flex gap-3 overflow-x-auto hide-scrollbar pb-2"></div>
+      </div>
+
+      <div class="glass-card rounded-2xl p-4 space-y-3">
+        <h3 class="font-brand text-sm font-bold uppercase tracking-wider text-accent flex items-center gap-2">
+          <i class="fa-solid fa-location-dot"></i> Location & Hours
+        </h3>
+        <p id="shopAddressText" class="text-xs text-gray-300"></p>
+        <div class="text-xs text-gray-400 space-y-1 border-t border-white/10 pt-2.5">
+          <div class="flex justify-between"><span>Mon – Fri</span><span id="hoursWeekday" class="text-white font-medium">9:00 AM – 8:00 PM</span></div>
+          <div class="flex justify-between"><span>Saturday</span><span id="hoursSaturday" class="text-white font-medium">8:00 AM – 6:00 PM</span></div>
+          <div class="flex justify-between"><span>Sunday</span><span id="hoursSunday" class="text-gray-400">10:00 AM – 4:00 PM</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= VIEW 2: 4-STEP INTERACTIVE BOOKING ================= -->
+    <section id="view-book" class="hidden space-y-5 animate-view">
+      <div class="glass-card rounded-2xl p-4">
+        <div class="flex items-center justify-between mb-2">
+          <span class="text-xs font-semibold uppercase tracking-wider text-accent">Instant Chair Reservation</span>
+          <span id="bookingLiveSummary" class="text-xs text-gray-300 font-medium">$0 • 0 min</span>
+        </div>
+        <div class="grid grid-cols-4 gap-1.5 text-[11px] text-center font-medium">
+          <div id="stepInd1" class="py-1.5 rounded-lg bg-accent text-[#1a1a2e] font-bold">1. Service</div>
+          <div id="stepInd2" class="py-1.5 rounded-lg bg-white/5 text-gray-400">2. Barber</div>
+          <div id="stepInd3" class="py-1.5 rounded-lg bg-white/5 text-gray-400">3. Time</div>
+          <div id="stepInd4" class="py-1.5 rounded-lg bg-white/5 text-gray-400">4. Confirm</div>
+        </div>
+      </div>
+
+      <div id="bookStep1" class="space-y-3">
+        <div class="flex justify-between items-center">
+          <h3 class="text-sm font-bold text-white">Select Service(s)</h3>
+          <span class="text-[11px] text-gray-400">Combine cut + beard or add-ons</span>
+        </div>
+        <div id="bookingServicesGrid" class="space-y-2.5"></div>
+        <button onclick="goToBookingStep(2)" class="w-full gold-gradient text-[#1a1a2e] font-bold py-3.5 rounded-xl shadow-lg text-sm mt-2">
+          Continue to Barber Selection <i class="fa-solid fa-chevron-right text-xs ml-1"></i>
+        </button>
+      </div>
+
+      <div id="bookStep2" class="hidden space-y-3">
+        <div class="flex justify-between items-center">
+          <h3 class="text-sm font-bold text-white">Choose Your Barber</h3>
+          <button onclick="goToBookingStep(1)" class="text-xs text-accent"><i class="fa-solid fa-arrow-left mr-1"></i>Back</button>
+        </div>
+        <div id="bookingBarbersGrid" class="space-y-2.5"></div>
+        <button onclick="goToBookingStep(3)" class="w-full gold-gradient text-[#1a1a2e] font-bold py-3.5 rounded-xl shadow-lg text-sm mt-2">
+          Select Date & Time <i class="fa-solid fa-chevron-right text-xs ml-1"></i>
+        </button>
+      </div>
+
+      <div id="bookStep3" class="hidden space-y-4">
+        <div class="flex justify-between items-center">
+          <h3 class="text-sm font-bold text-white">Pick Date & Time</h3>
+          <button onclick="goToBookingStep(2)" class="text-xs text-accent"><i class="fa-solid fa-arrow-left mr-1"></i>Back</button>
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1.5">Appointment Date</label>
+          <input type="date" id="bookingDateInput" onchange="renderTimeSlots()" class="w-full rounded-xl bg-secondary border border-white/15 px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-accent" />
+        </div>
+        <div>
+          <div class="flex justify-between items-center mb-2">
+            <label class="text-xs text-gray-400">Available Slots</label>
+            <span class="text-[10px] text-emerald-400"><i class="fa-solid fa-circle text-[7px] mr-1"></i>Real-Time Conflict Check</span>
+          </div>
+          <div id="bookingTimeSlotsGrid" class="grid grid-cols-3 gap-2"></div>
+        </div>
+        <button onclick="goToBookingStep(4)" class="w-full gold-gradient text-[#1a1a2e] font-bold py-3.5 rounded-xl shadow-lg text-sm">
+          Continue to Details <i class="fa-solid fa-chevron-right text-xs ml-1"></i>
+        </button>
+      </div>
+
+      <div id="bookStep4" class="hidden space-y-4">
+        <div class="flex justify-between items-center">
+          <h3 class="text-sm font-bold text-white">Your Details & Payment Option</h3>
+          <button onclick="goToBookingStep(3)" class="text-xs text-accent"><i class="fa-solid fa-arrow-left mr-1"></i>Back</button>
+        </div>
+
+        <div id="bookingSummaryBox" class="glass-card rounded-xl p-3.5 text-xs space-y-1.5 border border-accent/30"></div>
+
+        <div class="glass-card rounded-xl p-3.5 space-y-2.5 border border-white/10">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold uppercase tracking-wider text-accent">
+              <i class="fa-solid fa-shield-halved mr-1"></i> No-Show Chair Protection
+            </span>
+            <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-semibold">+50 Bonus Pts</span>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2" id="paymentMethodToggle">
+            <button type="button" onclick="selectPaymentMode('deposit')" id="payModeDepositBtn" class="p-2.5 rounded-xl border border-accent bg-white/10 text-left transition">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-white">Pay Deposit</span>
+                <i class="fa-solid fa-bolt text-accent text-xs"></i>
+              </div>
+              <div class="text-[11px] text-accent font-extrabold mt-0.5">$<span id="depositAmtLabel">15</span> Now</div>
+              <div class="text-[10px] text-gray-400">Via Stripe / Square</div>
+            </button>
+
+            <button type="button" onclick="selectPaymentMode('chair')" id="payModeChairBtn" class="p-2.5 rounded-xl border border-white/10 bg-secondary text-left transition opacity-75">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-white">Pay at Chair</span>
+                <i class="fa-solid fa-money-bill-wave text-gray-400 text-xs"></i>
+              </div>
+              <div class="text-[11px] text-gray-300 font-bold mt-0.5">Full Total</div>
+              <div class="text-[10px] text-gray-400">Cash / Card in Shop</div>
+            </button>
+          </div>
+        </div>
+
+        <div class="space-y-3">
+          <div>
+            <label class="block text-xs text-gray-400 mb-1">Full Name *</label>
+            <input type="text" id="clientName" placeholder="e.g. Marcus Vance" class="w-full rounded-xl bg-secondary border border-white/15 px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-accent" />
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1">Mobile Phone (Links to Loyalty Wallet) *</label>
+            <input type="tel" id="clientPhone" placeholder="(555) 234-5678" class="w-full rounded-xl bg-secondary border border-white/15 px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-accent" />
+          </div>
+          <div>
+            <label class="block text-xs text-gray-400 mb-1">Style Notes / Cut Preferences (Optional)</label>
+            <input type="text" id="clientNotes" placeholder="Mid skin fade, #2 on top, hard part..." class="w-full rounded-xl bg-secondary border border-white/15 px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-accent" />
+          </div>
+        </div>
+
+        <button id="finalSubmitBookingBtn" onclick="submitBooking()" class="w-full gold-gradient text-[#1a1a2e] font-bold py-3.5 rounded-xl shadow-lg text-sm flex items-center justify-center gap-2">
+          <i class="fa-solid fa-lock"></i> <span id="submitBtnText">Pay $15 Deposit & Reserve Chair (+150 Pts)</span>
+        </button>
+      </div>
+
+      <div id="bookConfirmation" class="hidden glass-card rounded-2xl p-5 text-center space-y-4 border border-emerald-500/40">
+        <div class="w-14 h-14 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto text-2xl border border-emerald-500/40">
+          <i class="fa-solid fa-check"></i>
+        </div>
+        <div>
+          <span class="text-[11px] uppercase tracking-widest text-accent font-semibold" id="receiptCode">REF #EC-9021</span>
+          <h3 class="font-brand text-xl font-bold text-white mt-0.5">Chair Reserved!</h3>
+          <p class="text-xs text-gray-300 mt-1" id="receiptDetailsText"></p>
+        </div>
+        <div class="grid grid-cols-2 gap-2.5 pt-2">
+          <button onclick="downloadICS()" class="py-2.5 px-3 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-semibold text-white flex items-center justify-center gap-1.5">
+            <i class="fa-regular fa-calendar-plus text-accent"></i> Add to Calendar
+          </button>
+          <button onclick="sendSMSConfirmation()" class="py-2.5 px-3 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-xs font-semibold text-emerald-300 border border-emerald-500/30 flex items-center justify-center gap-1.5">
+            <i class="fa-solid fa-comment-sms"></i> SMS Receipt
+          </button>
+        </div>
+        <button onclick="resetBookingFlow()" class="text-xs text-gray-400 underline pt-2">Book Another Appointment</button>
+      </div>
+    </section>
+
+    <!-- ================= VIEW 3: VIP LOYALTY WALLET ================= -->
+    <section id="view-loyalty" class="hidden space-y-5 animate-view">
+      <div class="rounded-2xl p-5 gold-gradient text-[#1a1a2e] shadow-2xl relative overflow-hidden">
+        <div class="flex justify-between items-start">
+          <div>
+            <span class="text-[10px] font-extrabold uppercase tracking-widest bg-black/15 px-2 py-0.5 rounded">VIP Grooming Club</span>
+            <h3 id="loyaltyCardShopName" class="font-brand text-xl font-extrabold mt-1">ELITE CUTS REWARDS</h3>
+          </div>
+          <i class="fa-solid fa-scissors text-2xl opacity-30"></i>
+        </div>
+        <div class="mt-4 flex items-baseline justify-between">
+          <div>
+            <div class="text-xs font-semibold opacity-80">Active Balance</div>
+            <div class="text-3xl font-extrabold" id="loyaltyPointsDisplay">0 PTS</div>
+          </div>
+          <div class="text-right">
+            <div class="text-xs font-semibold opacity-80">Stamps</div>
+            <div class="text-lg font-extrabold" id="loyaltyStampsCount">0 / 10 Cuts</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="glass-card rounded-2xl p-4 space-y-3">
+        <label class="block text-xs font-semibold text-gray-300">Check Your VIP Wallet by Phone Number</label>
+        <div class="flex gap-2">
+          <input type="tel" id="loyaltyLookupPhone" placeholder="(555) 234-5678" class="flex-1 rounded-xl bg-secondary border border-white/15 px-3.5 py-2 text-sm text-white focus:outline-none focus:border-accent" />
+          <button onclick="lookupLoyalty()" class="px-4 py-2 rounded-xl bg-accent text-[#1a1a2e] font-bold text-xs">Load</button>
+        </div>
+      </div>
+
+      <div class="glass-card rounded-2xl p-4 space-y-3">
+        <div class="flex justify-between items-center">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-white">Digital 10-Cut Stamp Card</h4>
+          <span class="text-[11px] text-accent">10th Cut = Free Executive Package</span>
+        </div>
+        <div id="punchCardGrid" class="grid grid-cols-5 gap-2.5 pt-1"></div>
+      </div>
+
+      <div class="glass-card rounded-2xl p-4 space-y-3">
+        <h4 class="text-xs font-bold uppercase tracking-wider text-white">Your Appointments</h4>
+        <div id="clientAppointmentsList" class="space-y-2 text-xs text-gray-400">
+          Enter your phone number above or book a chair to track your visits.
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= VIEW 4: LOOKBOOK / GALLERY ================= -->
+    <section id="view-gallery" class="hidden space-y-4 animate-view">
+      <div class="flex items-center justify-between">
+        <div>
+          <h3 class="font-brand text-lg font-bold text-white">Style Lookbook</h3>
+          <p class="text-xs text-gray-400">Tap any cut to pre-fill your booking notes</p>
+        </div>
+      </div>
+      <div id="galleryGrid" class="grid grid-cols-2 gap-3"></div>
+    </section>
+
+  </main>
+
+  <!-- BOTTOM H5 APP BAR -->
+  <nav class="fixed bottom-0 inset-x-0 z-40 glass-card border-t border-white/10 px-2 py-2">
+    <div class="max-w-md mx-auto grid grid-cols-4 gap-1">
+      <button onclick="switchTab('home')" id="nav-home" class="flex flex-col items-center py-1.5 rounded-xl text-accent">
+        <i class="fa-solid fa-shop text-base"></i>
+        <span class="text-[10px] font-semibold mt-1">Shop</span>
+      </button>
+      <button onclick="switchTab('book')" id="nav-book" class="flex flex-col items-center py-1.5 rounded-xl text-gray-400">
+        <i class="fa-regular fa-calendar-check text-base"></i>
+        <span class="text-[10px] font-semibold mt-1">Book Chair</span>
+      </button>
+      <button onclick="switchTab('loyalty')" id="nav-loyalty" class="flex flex-col items-center py-1.5 rounded-xl text-gray-400">
+        <i class="fa-solid fa-crown text-base"></i>
+        <span class="text-[10px] font-semibold mt-1">VIP Wallet</span>
+      </button>
+      <button onclick="switchTab('gallery')" id="nav-gallery" class="flex flex-col items-center py-1.5 rounded-xl text-gray-400">
+        <i class="fa-solid fa-camera-retro text-base"></i>
+        <span class="text-[10px] font-semibold mt-1">Lookbook</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ================= WHITE-LABEL ADMIN & RESELLER MODAL (?portal=admin) ================= -->
+  <div id="adminModal" class="fixed inset-0 z-50 hidden bg-black/80 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-[#16213e] border border-accent/30 w-full max-w-md rounded-t-3xl sm:rounded-2xl max-h-[90vh] overflow-y-auto p-5 space-y-4">
+      <div class="flex items-center justify-between border-b border-white/10 pb-3">
+        <div>
+          <span class="text-[10px] uppercase tracking-widest text-accent font-bold">Commercial White-Label Engine</span>
+          <h3 class="font-brand text-base font-bold text-white">Shop Manager & Branding Studio</h3>
+        </div>
+        <button onclick="closeAdminModal()" class="w-8 h-8 rounded-lg bg-white/10 text-gray-300 flex items-center justify-center">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div id="adminPinGate" class="space-y-3 py-2">
+        <p class="text-xs text-gray-300">Enter Manager PIN to access live appointments, barber folders, and loyalty spreadsheets <span class="text-accent">(Demo PIN: 1234)</span>.</p>
+        <div class="flex gap-2">
+          <input type="password" id="adminPinInput" placeholder="Enter PIN (1234)" class="flex-1 rounded-xl bg-primary border border-white/15 px-3.5 py-2 text-sm text-white" />
+          <button onclick="unlockAdmin()" class="px-5 py-2 rounded-xl gold-gradient text-[#1a1a2e] font-bold text-xs">Unlock</button>
+        </div>
+      </div>
+
+      <div id="adminContent" class="hidden space-y-5">
+        <!-- Live Queue -->
+        <div class="space-y-2">
+          <div class="flex justify-between items-center">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-accent">Appointment Queue (<span id="adminBookingCount">0</span>)</h4>
+            <button onclick="clearCompletedBookings()" class="text-[11px] text-gray-400 hover:text-white">Clear Cancelled</button>
+          </div>
+          <div id="adminAppointmentsList" class="space-y-2 max-h-40 overflow-y-auto pr-1"></div>
+        </div>
+
+        <!-- BARBER FOLDERS & ROSTER -->
+        <div class="space-y-3 border-t border-white/10 pt-4">
+          <div class="flex justify-between items-center">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-accent">Barber Folders & Roster (<span id="adminBarberCount">0</span>)</h4>
+            <span class="text-[10px] text-gray-400">Auto-naming `firstname_lastname_XXX`</span>
+          </div>
+          <div id="adminBarbersList" class="space-y-2 max-h-44 overflow-y-auto pr-1"></div>
+
+          <div class="bg-primary p-3 rounded-xl border border-white/10 space-y-2.5">
+            <span class="text-[11px] font-bold text-white block">Add Barber Chair & Folder Upload</span>
+            <div class="grid grid-cols-2 gap-2">
+              <input type="text" id="newBarberFirst" placeholder="First Name" class="rounded-lg bg-[#16213e] border border-white/15 px-2.5 py-1.5 text-xs text-white" />
+              <input type="text" id="newBarberLast" placeholder="Last Name" class="rounded-lg bg-[#16213e] border border-white/15 px-2.5 py-1.5 text-xs text-white" />
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <input type="text" id="newBarberSpecialty" placeholder="Specialty (e.g. Fades)" class="rounded-lg bg-[#16213e] border border-white/15 px-2.5 py-1.5 text-xs text-white" />
+              <input type="file" id="newBarberPhotoFile" accept="image/*" class="rounded-lg bg-[#16213e] border border-white/15 px-2 py-1 text-[10px] text-gray-300 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-semibold file:bg-accent file:text-[#1a1a2e]" />
+            </div>
+            <button onclick="addNewBarberWithFolder()" class="w-full py-2 rounded-lg gold-gradient text-[#1a1a2e] font-bold text-xs">
+              <i class="fa-solid fa-folder-plus mr-1"></i> Create Folder & Add Barber
+            </button>
+          </div>
+        </div>
+
+        <!-- VIP LOYALTY CSV SPREADSHEET -->
+        <div class="space-y-3 border-t border-white/10 pt-4">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-accent">VIP Loyalty Spreadsheet (CSV)</h4>
+          <p class="text-[11px] text-gray-300">Export client phone numbers, points, and stamp balances to Excel / Google Sheets, or import back.</p>
+          <div class="flex gap-2">
+            <button onclick="exportLoyaltyCSV()" class="flex-1 py-2.5 rounded-xl bg-accent text-[#1a1a2e] font-bold text-xs flex items-center justify-center gap-1.5">
+              <i class="fa-solid fa-file-excel"></i> Export CSV Spreadsheet
+            </button>
+            <label class="px-3 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-semibold text-white border border-white/15 cursor-pointer flex items-center gap-1.5">
+              <i class="fa-solid fa-file-arrow-up text-accent"></i> Import CSV
+              <input type="file" id="importCsvInput" accept=".csv" onchange="importLoyaltyCSV(event)" class="hidden" />
+            </label>
+          </div>
+        </div>
+
+        <!-- Branding Settings -->
+        <div class="space-y-3 border-t border-white/10 pt-4">
+          <h4 class="text-xs font-bold uppercase tracking-wider text-accent">White-Label Tenant Branding</h4>
+          <div>
+            <label class="block text-[11px] text-gray-400 mb-1">Shop Name</label>
+            <input type="text" id="cfgShopName" class="w-full rounded-lg bg-primary border border-white/15 px-3 py-1.5 text-xs text-white" />
+          </div>
+          <div>
+            <label class="block text-[11px] text-gray-400 mb-1">Tagline</label>
+            <input type="text" id="cfgTagline" class="w-full rounded-lg bg-primary border border-white/15 px-3 py-1.5 text-xs text-white" />
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="block text-[11px] text-gray-400 mb-1">Primary Dark Hex</label>
+              <input type="color" id="cfgPrimaryColor" class="w-full h-9 rounded-lg bg-primary border border-white/15 p-1" />
+            </div>
+            <div>
+              <label class="block text-[11px] text-gray-400 mb-1">Accent Gold Hex</label>
+              <input type="color" id="cfgAccentColor" class="w-full h-9 rounded-lg bg-primary border border-white/15 p-1" />
+            </div>
+          </div>
+          <button onclick="saveWhiteLabelConfig()" class="w-full py-2.5 rounded-xl gold-gradient text-[#1a1a2e] font-bold text-xs">
+            Apply Branding Settings
+          </button>
+        </div>
+
+        <div class="border-t border-white/10 pt-3 flex gap-2">
+          <button onclick="exportConfigJSON()" class="flex-1 py-2 rounded-lg bg-white/10 text-xs font-semibold text-white">
+            <i class="fa-solid fa-download mr-1 text-accent"></i> Export Tenant Backup
+          </button>
+          <button onclick="resetDemoData()" class="py-2 px-3 rounded-lg bg-rose-500/20 text-xs font-semibold text-rose-300 border border-rose-500/30">
+            Reset
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- APPLICATION STATE & LOGIC -->
+  <script>
+    const STORAGE_KEY_CONFIG = 'ELITE_CUTS_H5_CONFIG_V1';
+    const STORAGE_KEY_BOOKINGS = 'ELITE_CUTS_H5_BOOKINGS_V1';
+    const STORAGE_KEY_LOYALTY = 'ELITE_CUTS_H5_LOYALTY_V1';
+
+    const DEFAULT_CONFIG = {
+      shopName: 'ELITE CUTS',
+      tagline: 'Master Barbering & Grooming Lounge',
+      phone: '+15552345678',
+      address: '742 Evergreen Ave, Suite 100 • Free Validated Garage Parking',
+      primaryColor: '#1a1a2e',
+      accentColor: '#d4af37',
+      webhookUrl: '',
+      licenseKey: 'EC-ENTERPRISE-LICENSE-ACTIVE',
+      depositAmount: 15,
+      paymentLinkUrl: '',
+      requireDeposit: false,
+      services: [
+        { id: 'srv-1', name: 'The Executive Cut & Style', price: 45, duration: 45, category: 'Hair', desc: 'Precision scissor or skin fade, hot lather neck shave & invigorating wash.' },
+        { id: 'srv-2', name: 'Cut + Beard Sculpt & Hot Towel', price: 65, duration: 60, category: 'Combo', desc: 'Full bespoke haircut paired with straight-razor beard line-up and essential oils.' },
+        { id: 'srv-3', name: 'Traditional Straight Razor Shave', price: 40, duration: 30, category: 'Shave', desc: 'Three hot towels, rich sandalwood lather, double-pass straight razor finish.' },
+        { id: 'srv-4', name: 'Beard Trim & Razor Line-Up', price: 30, duration: 25, category: 'Beard', desc: 'Shape, taper, conditioning balm, and crisp cheek/neck razor detailing.' }
+      ],
+      barbers: [
+        { id: 'brb-1', firstName: 'Marcus', lastName: 'Vance', name: 'Marcus Vance', folder: 'marcus_vance', photoFilename: 'marcus_vance_001.jpg', role: 'Master Barber • 12 Yrs', specialty: 'Skin Fades & Beard Sculpting', rating: '5.0', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80' },
+        { id: 'brb-2', firstName: 'Mateo', lastName: 'Cruz', name: 'Mateo Cruz', folder: 'mateo_cruz', photoFilename: 'mateo_cruz_001.jpg', role: 'Senior Barber • 8 Yrs', specialty: 'Razor Tapers & Crop Cuts', rating: '4.9', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=240&q=80' }
+      ],
+      lookbook: [
+        { title: 'Mid Drop Skin Fade + Textured Crop', tag: 'Fade', img: 'https://images.unsplash.com/photo-1622286342621-4bd786c2447c?auto=format&fit=crop&w=600&q=80' },
+        { title: 'Executive Side Part + Tapered Beard', tag: 'Classic', img: 'https://images.unsplash.com/photo-1503951914875-452162b0f3f1?auto=format&fit=crop&w=600&q=80' }
+      ],
+      timeSlots: ['09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '01:30 PM', '02:30 PM', '03:30 PM', '04:30 PM', '05:30 PM', '06:30 PM']
+    };
+
+    let shopConfig = Object.assign({}, DEFAULT_CONFIG, JSON.parse(localStorage.getItem(STORAGE_KEY_CONFIG) || '{}'));
+    let bookings = JSON.parse(localStorage.getItem(STORAGE_KEY_BOOKINGS)) || [];
+    let loyaltyDB = JSON.parse(localStorage.getItem(STORAGE_KEY_LOYALTY)) || {};
+
+    let currentBooking = {
+      serviceIds: ['srv-1'],
+      barberId: 'brb-1',
+      date: new Date().toISOString().split('T')[0],
+      time: '11:00 AM',
+      paymentMode: 'deposit',
+      clientName: '',
+      clientPhone: '',
+      notes: '',
+      refCode: ''
+    };
+
+    // ZERO-TRUST CLIENT-SIDE ENCRYPTED VAULT WITH 30-MIN HASH ROTATION
+    const LoyaltyVault = {
+      encryptData(rawData, phonePin) {
+        const timeWindowHash = Math.floor(Date.now() / (1000 * 60 * 30)); // Rotates every 30 mins
+        const saltedPin = phonePin + '-' + timeWindowHash;
+        const jsonStr = JSON.stringify(rawData);
+        let encrypted = '';
+        for (let i = 0; i < jsonStr.length; i++) {
+          const charCode = jsonStr.charCodeAt(i) ^ saltedPin.charCodeAt(i % saltedPin.length);
+          encrypted += String.fromCharCode(charCode);
+        }
+        return btoa(encrypted);
+      },
+
+      decryptData(encryptedBase64, phonePin) {
+        try {
+          const timeWindowHash = Math.floor(Date.now() / (1000 * 60 * 30));
+          // Check current and previous 30-min window to prevent abrupt token drops
+          for (let offset = 0; offset >= -1; offset--) {
+            const saltedPin = phonePin + '-' + (timeWindowHash + offset);
+            const jsonStr = atob(encryptedBase64);
+            let decrypted = '';
+            for (let i = 0; i < jsonStr.length; i++) {
+              const charCode = jsonStr.charCodeAt(i) ^ saltedPin.charCodeAt(i % saltedPin.length);
+              decrypted += String.fromCharCode(charCode);
+            }
+            const parsed = JSON.parse(decrypted);
+            if (parsed) return parsed;
+          }
+        } catch (e) {
+          return null;
+        }
+        return null;
+      },
+
+      saveToDevice(phone, record) {
+        const pin = normalizePhone(phone);
+        const token = this.encryptData(record, pin);
+        localStorage.setItem(`EC_VAULT_${pin}`, token);
+      },
+
+      loadFromDevice(phone) {
+        const pin = normalizePhone(phone);
+        const token = localStorage.getItem(`EC_VAULT_${pin}`);
+        if (!token) return { points: 0, stamps: 0, history: [] };
+        return this.decryptData(token, pin) || { points: 0, stamps: 0, history: [] };
+      }
+    };
+
+    function applyThemeVariables() {
+      document.documentElement.style.setProperty('--primary', shopConfig.primaryColor || '#1a1a2e');
+      document.documentElement.style.setProperty('--accent', shopConfig.accentColor || '#d4af37');
+      document.getElementById('headerShopName').textContent = shopConfig.shopName;
+      document.getElementById('loyaltyCardShopName').textContent = `${shopConfig.shopName} REWARDS`;
+      document.getElementById('headerTagline').textContent = shopConfig.tagline;
+      document.getElementById('shopAddressText').textContent = shopConfig.address;
+      document.getElementById('headerPhoneBtn').href = `tel:${shopConfig.phone}`;
+      document.getElementById('statBarberCount').textContent = `${shopConfig.barbers.length} Chairs`;
+      document.getElementById('depositAmtLabel').textContent = shopConfig.depositAmount || 15;
+    }
+
+    function selectPaymentMode(mode) {
+      if (shopConfig.requireDeposit && mode === 'chair') {
+        alert(`${shopConfig.shopName} requires a $${shopConfig.depositAmount || 15} deposit to lock in a chair.`);
+        return;
+      }
+      currentBooking.paymentMode = mode;
+      const depBtn = document.getElementById('payModeDepositBtn');
+      const chrBtn = document.getElementById('payModeChairBtn');
+      const btnText = document.getElementById('submitBtnText');
+      const depAmt = shopConfig.depositAmount || 15;
+
+      document.getElementById('depositAmtLabel').textContent = depAmt;
+
+      if (mode === 'deposit') {
+        depBtn.className = 'p-2.5 rounded-xl border border-accent bg-white/10 text-left transition';
+        chrBtn.className = 'p-2.5 rounded-xl border border-white/10 bg-secondary text-left transition opacity-70';
+        btnText.textContent = `Pay $${depAmt} Deposit & Reserve Chair (+150 Pts)`;
+      } else {
+        chrBtn.className = 'p-2.5 rounded-xl border border-accent bg-white/10 text-left transition';
+        depBtn.className = 'p-2.5 rounded-xl border border-white/10 bg-secondary text-left transition opacity-70';
+        btnText.textContent = `Confirm Appointment & Pay at Chair (+100 Pts)`;
+      }
+    }
+
+    function renderHome() {
+      const srvList = document.getElementById('homeServicesList');
+      srvList.innerHTML = shopConfig.services.map(s => `
+        <div onclick="quickBookService('${s.id}')" class="glass-card rounded-xl p-3.5 flex items-center justify-between cursor-pointer hover:border-accent/60 transition">
+          <div class="pr-3">
+            <div class="flex items-center gap-2">
+              <span class="text-sm font-bold text-white">${s.name}</span>
+              <span class="text-[10px] px-2 py-0.5 rounded bg-white/10 text-gray-300">${s.duration}m</span>
+            </div>
+            <p class="text-xs text-gray-400 mt-0.5 line-clamp-1">${s.desc}</p>
+          </div>
+          <div class="text-right shrink-0">
+            <div class="text-accent font-extrabold text-sm">$${s.price}</div>
+            <span class="text-[10px] text-gray-400">Select <i class="fa-solid fa-chevron-right text-[8px]"></i></span>
+          </div>
+        </div>
+      `).join('');
+
+      const brbList = document.getElementById('homeBarbersList');
+      brbList.innerHTML = shopConfig.barbers.map(b => `
+        <div onclick="quickBookBarber('${b.id}')" class="glass-card rounded-xl p-3 min-w-[165px] shrink-0 cursor-pointer hover:border-accent/60 transition">
+          <div class="flex items-center gap-2.5">
+            <img src="${b.avatar}" class="w-11 h-11 rounded-full object-cover border border-accent" alt="${b.name}" />
+            <div>
+              <div class="text-xs font-bold text-white leading-tight">${b.name}</div>
+              <div class="text-[10px] text-accent font-semibold mt-0.5"><i class="fa-solid fa-star text-[9px]"></i> ${b.rating}</div>
+            </div>
+          </div>
+          <div class="text-[11px] text-gray-300 mt-2 font-medium">${b.specialty}</div>
+          <div class="text-[10px] text-gray-400 mt-0.5">Folder: /barbers/${b.folder}/</div>
+        </div>
+      `).join('');
+
+      const galGrid = document.getElementById('galleryGrid');
+      galGrid.innerHTML = shopConfig.lookbook.map(item => `
+        <div onclick="selectLookbookStyle('${item.title}')" class="glass-card rounded-xl overflow-hidden cursor-pointer group">
+          <div class="relative h-36 overflow-hidden">
+            <img src="${item.img}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" alt="${item.title}" />
+            <span class="absolute top-2 left-2 text-[10px] bg-black/70 text-accent px-2 py-0.5 rounded font-semibold">${item.tag}</span>
+          </div>
+          <div class="p-2.5">
+            <div class="text-xs font-semibold text-white leading-snug">${item.title}</div>
+            <div class="text-[10px] text-accent mt-1">Book This Cut <i class="fa-solid fa-arrow-right text-[9px]"></i></div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function switchTab(tab) {
+      ['home', 'book', 'loyalty', 'gallery'].forEach(t => {
+        document.getElementById(`view-${t}`).classList.add('hidden');
+        const navBtn = document.getElementById(`nav-${t}`);
+        navBtn.classList.remove('text-accent');
+        navBtn.classList.add('text-gray-400');
+      });
+      document.getElementById(`view-${tab}`).classList.remove('hidden');
+      const activeNav = document.getElementById(`nav-${tab}`);
+      activeNav.classList.remove('text-gray-400');
+      activeNav.classList.add('text-accent');
+
+      if (tab === 'book') {
+        renderBookingStep1();
+        renderBookingStep2();
+        renderTimeSlots();
+        updateBookingTotals();
+      } else if (tab === 'loyalty') {
+        renderPunchCard(0);
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function quickBookService(serviceId) {
+      currentBooking.serviceIds = [serviceId];
+      switchTab('book');
+      goToBookingStep(2);
+    }
+
+    function quickBookBarber(barberId) {
+      currentBooking.barberId = barberId;
+      switchTab('book');
+      goToBookingStep(1);
+    }
+
+    function selectLookbookStyle(title) {
+      document.getElementById('clientNotes').value = `Requested Lookbook Style: ${title}`;
+      switchTab('book');
+    }
+
+    function getSelectedServices() {
+      return shopConfig.services.filter(s => currentBooking.serviceIds.includes(s.id));
+    }
+
+    function updateBookingTotals() {
+      const selected = getSelectedServices();
+      const totalCost = selected.reduce((sum, s) => sum + Number(s.price), 0);
+      const totalMin = selected.reduce((sum, s) => sum + Number(s.duration), 0);
+      document.getElementById('bookingLiveSummary').textContent = `$${totalCost} • ${totalMin} min`;
+      return { totalCost, totalMin, selected };
+    }
+
+    function toggleServiceSelection(id) {
+      const idx = currentBooking.serviceIds.indexOf(id);
+      if (idx > -1 && currentBooking.serviceIds.length > 1) {
+        currentBooking.serviceIds.splice(idx, 1);
+      } else if (idx === -1) {
+        currentBooking.serviceIds.push(id);
+      }
+      renderBookingStep1();
+      updateBookingTotals();
+    }
+
+    function renderBookingStep1() {
+      const container = document.getElementById('bookingServicesGrid');
+      container.innerHTML = shopConfig.services.map(s => {
+        const active = currentBooking.serviceIds.includes(s.id);
+        return `
+          <div onclick="toggleServiceSelection('${s.id}')" class="glass-card rounded-xl p-3.5 cursor-pointer flex items-center justify-between border ${active ? 'border-accent bg-white/10' : 'border-white/10'}">
+            <div class="pr-3">
+              <div class="flex items-center gap-2">
+                <i class="fa-solid ${active ? 'fa-square-check text-accent' : 'fa-square text-gray-500'}"></i>
+                <span class="text-sm font-bold text-white">${s.name}</span>
+              </div>
+              <p class="text-xs text-gray-400 mt-1">${s.desc}</p>
+            </div>
+            <div class="text-right shrink-0">
+              <div class="text-sm font-extrabold text-accent">$${s.price}</div>
+              <div class="text-[10px] text-gray-400">${s.duration} min</div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function selectBarber(id) {
+      currentBooking.barberId = id;
+      renderBookingStep2();
+      renderTimeSlots();
+    }
+
+    function renderBookingStep2() {
+      const container = document.getElementById('bookingBarbersGrid');
+      container.innerHTML = shopConfig.barbers.map(b => {
+        const active = currentBooking.barberId === b.id;
+        return `
+          <div onclick="selectBarber('${b.id}')" class="glass-card rounded-xl p-3.5 cursor-pointer flex items-center justify-between border ${active ? 'border-accent bg-white/10' : 'border-white/10'}">
+            <div class="flex items-center gap-3">
+              <img src="${b.avatar}" class="w-12 h-12 rounded-full object-cover border border-accent" alt="${b.name}" />
+              <div>
+                <div class="text-sm font-bold text-white">${b.name}</div>
+                <div class="text-xs text-gray-300">${b.specialty}</div>
+                <div class="text-[10px] text-accent">Folder: /barbers/${b.folder}/</div>
+              </div>
+            </div>
+            <i class="fa-solid ${active ? 'fa-circle-check text-accent text-lg' : 'fa-circle text-white/10 text-lg'}"></i>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderTimeSlots() {
+      const dateInput = document.getElementById('bookingDateInput');
+      if (!dateInput.value) {
+        dateInput.value = currentBooking.date;
+      }
+      currentBooking.date = dateInput.value;
+
+      const grid = document.getElementById('bookingTimeSlotsGrid');
+      grid.innerHTML = shopConfig.timeSlots.map(slot => {
+        const isTaken = bookings.some(
+          b => b.barberId === currentBooking.barberId &&
+               b.date === currentBooking.date &&
+               b.time === slot &&
+               b.status !== 'Cancelled'
+        );
+        const isSelected = currentBooking.time === slot && !isTaken;
+        if (isTaken) {
+          return `<button disabled class="py-2.5 rounded-xl bg-white/5 text-gray-600 text-xs font-medium line-through border border-white/5 cursor-not-allowed">${slot}</button>`;
+        }
+        return `
+          <button onclick="selectTimeSlot('${slot}')" class="py-2.5 rounded-xl text-xs font-semibold border transition ${isSelected ? 'gold-gradient text-[#1a1a2e] border-accent font-bold shadow' : 'bg-secondary text-white border-white/10 hover:border-accent/50'}">
+            ${slot}
+          </button>
+        `;
+      }).join('');
+    }
+
+    function selectTimeSlot(slot) {
+      currentBooking.time = slot;
+      renderTimeSlots();
+    }
+
+    function goToBookingStep(step) {
+      document.getElementById('bookConfirmation').classList.add('hidden');
+      [1, 2, 3, 4].forEach(s => {
+        document.getElementById(`bookStep${s}`).classList.toggle('hidden', s !== step);
+        const ind = document.getElementById(`stepInd${s}`);
+        if (s === step) {
+          ind.className = 'py-1.5 rounded-lg bg-accent text-[#1a1a2e] font-bold';
+        } else if (s < step) {
+          ind.className = 'py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 font-semibold';
+        } else {
+          ind.className = 'py-1.5 rounded-lg bg-white/5 text-gray-400';
+        }
+      });
+
+      if (step === 4) {
+        const { totalCost, totalMin, selected } = updateBookingTotals();
+        const barber = shopConfig.barbers.find(b => b.id === currentBooking.barberId) || shopConfig.barbers[0];
+        document.getElementById('bookingSummaryBox').innerHTML = `
+          <div class="flex justify-between"><span class="text-gray-400">Services:</span><span class="text-white font-semibold text-right">${selected.map(s => s.name).join(', ')}</span></div>
+          <div class="flex justify-between"><span class="text-gray-400">Master Barber:</span><span class="text-white font-semibold">${barber.name}</span></div>
+          <div class="flex justify-between"><span class="text-gray-400">Date & Time:</span><span class="text-accent font-bold">${currentBooking.date} @ ${currentBooking.time}</span></div>
+          <div class="flex justify-between border-t border-white/10 pt-1.5 mt-1"><span class="text-gray-300 font-semibold">Total Service Value:</span><span class="text-accent font-extrabold text-sm">$${totalCost} (${totalMin} min)</span></div>
+        `;
+        selectPaymentMode(shopConfig.requireDeposit ? 'deposit' : currentBooking.paymentMode);
+      }
+    }
+
+    function normalizePhone(phone) {
+      return phone.replace(/\D/g, '');
+    }
+
+    async function submitBooking() {
+      const name = document.getElementById('clientName').value.trim();
+      const phone = document.getElementById('clientPhone').value.trim();
+      const notes = document.getElementById('clientNotes').value.trim();
+
+      if (!name || !phone) {
+        alert('Please enter your name and mobile phone number to reserve your chair.');
+        return;
+      }
+
+      const { totalCost, totalMin, selected } = updateBookingTotals();
+      const barber = shopConfig.barbers.find(b => b.id === currentBooking.barberId) || shopConfig.barbers[0];
+      const refCode = 'EC-' + Math.floor(1000 + Math.random() * 9000);
+      const isDeposit = currentBooking.paymentMode === 'deposit';
+      const pointsEarned = isDeposit ? 150 : 100;
+
+      const newBooking = {
+        id: Date.now().toString(),
+        refCode,
+        services: selected.map(s => s.name),
+        totalCost,
+        totalMin,
+        depositPaid: isDeposit ? (shopConfig.depositAmount || 15) : 0,
+        barberId: barber.id,
+        barberName: barber.name,
+        date: currentBooking.date,
+        time: currentBooking.time,
+        clientName: name,
+        clientPhone: phone,
+        notes,
+        status: isDeposit ? 'Deposit Pending / Confirmed' : 'Confirmed'
+      };
+
+      bookings.unshift(newBooking);
+      localStorage.setItem(STORAGE_KEY_BOOKINGS, JSON.stringify(bookings));
+
+      // Update Encrypted Client Vault
+      const phoneKey = normalizePhone(phone);
+      let clientVault = LoyaltyVault.loadFromDevice(phoneKey);
+      clientVault.name = name;
+      clientVault.phone = phone;
+      clientVault.points = (clientVault.points || 0) + pointsEarned;
+      clientVault.stamps = ((clientVault.stamps || 0) + 1) % 11;
+      clientVault.history = clientVault.history || [];
+      clientVault.history.unshift(newBooking);
+      LoyaltyVault.saveToDevice(phoneKey, clientVault);
+
+      // Also mirror to global loyalty DB for shop owner CSV export
+      loyaltyDB[phoneKey] = { name, phone, points: clientVault.points, stamps: clientVault.stamps };
+      localStorage.setItem(STORAGE_KEY_LOYALTY, JSON.stringify(loyaltyDB));
+
+      if (isDeposit && shopConfig.paymentLinkUrl) {
+        const sep = shopConfig.paymentLinkUrl.includes('?') ? '&' : '?';
+        window.open(`${shopConfig.paymentLinkUrl}${sep}client_reference_id=${refCode}`, '_blank');
+      }
+
+      currentBooking.lastConfirmed = newBooking;
+      [1, 2, 3, 4].forEach(s => document.getElementById(`bookStep${s}`).classList.add('hidden'));
+      document.getElementById('receiptCode').textContent = `REF #${refCode} (+${pointsEarned} VIP PTS)`;
+      document.getElementById('receiptDetailsText').textContent = `${selected.map(s => s.name).join(' + ')} with ${barber.name} on ${newBooking.date} at ${newBooking.time}.`;
+      document.getElementById('bookConfirmation').classList.remove('hidden');
+      document.getElementById('loyaltyLookupPhone').value = phone;
+    }
+
+    function resetBookingFlow() {
+      goToBookingStep(1);
+      renderTimeSlots();
+    }
+
+    function downloadICS() {
+      const b = currentBooking.lastConfirmed;
+      if (!b) return;
+      const icsContent = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//Elite Cuts Barbershop H5//EN',
+        'BEGIN:VEVENT',
+        `SUMMARY:${shopConfig.shopName} - ${b.services.join(', ')}`,
+        `DESCRIPTION:Barber: ${b.barberName} | Ref: ${b.refCode} | Total: $${b.totalCost}`,
+        `LOCATION:${shopConfig.address}`,
+        'END:VEVENT',
+        'END:VCALENDAR'
+      ].join('\n');
+
+      const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.setAttribute('download', `${b.refCode}-appointment.ics`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function sendSMSConfirmation() {
+      const b = currentBooking.lastConfirmed;
+      if (!b) return;
+      const msg = encodeURIComponent(`Hi ${shopConfig.shopName}, confirming my booking ${b.refCode} with ${b.barberName} on ${b.date} at ${b.time}.`);
+      window.location.href = `sms:${shopConfig.phone}?body=${msg}`;
+    }
+
+    function renderPunchCard(stamps = 0) {
+      const grid = document.getElementById('punchCardGrid');
+      let html = '';
+      for (let i = 1; i <= 10; i++) {
+        const filled = i <= stamps;
+        html += `
+          <div class="h-12 rounded-xl flex flex-col items-center justify-center border ${filled ? 'gold-gradient text-[#1a1a2e] border-accent font-extrabold shadow' : 'bg-secondary border-white/10 text-gray-500'}">
+            <i class="fa-solid ${i === 10 ? 'fa-crown' : (filled ? 'fa-check' : 'fa-scissors')} text-xs"></i>
+            <span class="text-[9px] mt-0.5">${i === 10 ? 'FREE' : '#' + i}</span>
+          </div>
+        `;
+      }
+      grid.innerHTML = html;
+    }
+
+    function lookupLoyalty() {
+      const rawPhone = document.getElementById('loyaltyLookupPhone').value.trim();
+      const key = normalizePhone(rawPhone);
+      const record = LoyaltyVault.loadFromDevice(key);
+
+      document.getElementById('loyaltyPointsDisplay').textContent = `${record.points || 0} PTS`;
+      document.getElementById('loyaltyStampsCount').textContent = `${record.stamps || 0} / 10 Cuts`;
+      renderPunchCard(record.stamps || 0);
+
+      const listEl = document.getElementById('clientAppointmentsList');
+      if (!record.history || record.history.length === 0) {
+        listEl.innerHTML = `<div class="text-xs text-gray-400">No past haircut visits found in your encrypted device vault.</div>`;
+        return;
+      }
+      listEl.innerHTML = record.history.map(b => `
+        <div class="p-3 rounded-xl bg-secondary border border-white/10 flex justify-between items-center">
+          <div>
+            <div class="text-xs font-bold text-white">${b.services.join(', ')}</div>
+            <div class="text-[11px] text-gray-400">${b.date} @ ${b.time} • ${b.barberName}</div>
+          </div>
+          <span class="text-[10px] px-2 py-0.5 rounded font-semibold bg-emerald-500/20 text-emerald-300">${b.status}</span>
+        </div>
+      `).join('');
+    }
+
+    // EXPORT / IMPORT CSV
+    function exportLoyaltyCSV() {
+      let csv = 'Phone,Name,Points,Stamps\n';
+      Object.keys(loyaltyDB).forEach(key => {
+        const c = loyaltyDB[key];
+        csv += `"${c.phone}","${c.name || 'Client'}",${c.points || 0},${c.stamps || 0}\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `${shopConfig.shopName.toLowerCase().replace(/\s+/g, '-')}-vip-loyalty-database.csv`;
+      link.click();
+    }
+
+    function importLoyaltyCSV(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const text = e.target.result;
+        const lines = text.split('\n');
+        let importedCount = 0;
+        for (let i = 1; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+          const cols = line.split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+          if (cols.length >= 3) {
+            const phone = cols[0].replace(/["']/g, '').trim();
+            const name = cols[1].replace(/["']/g, '').trim();
+            const points = Number(cols[2]) || 0;
+            const stamps = Number(cols[3]) || 0;
+            const key = normalizePhone(phone);
+            if (key) {
+              loyaltyDB[key] = { name, phone, points, stamps };
+              LoyaltyVault.saveToDevice(phone, { name, phone, points, stamps, history: [] });
+              importedCount++;
+            }
+          }
+        }
+        localStorage.setItem(STORAGE_KEY_LOYALTY, JSON.stringify(loyaltyDB));
+        alert(`Successfully imported ${importedCount} client records!`);
+      };
+      reader.readAsText(file);
+    }
+
+    // ADMIN STUDIO
+    function openAdminModal() {
+      document.getElementById('adminModal').classList.remove('hidden');
+      document.getElementById('cfgShopName').value = shopConfig.shopName;
+      document.getElementById('cfgTagline').value = shopConfig.tagline;
+      document.getElementById('cfgPrimaryColor').value = shopConfig.primaryColor || '#1a1a2e';
+      document.getElementById('cfgAccentColor').value = shopConfig.accentColor || '#d4af37';
+      renderAdminQueue();
+      renderAdminBarbers();
+    }
+
+    function closeAdminModal() {
+      if (window.location.search.includes('portal=')) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+      document.getElementById('adminModal').classList.add('hidden');
+      switchTab('home');
+    }
+
+    function unlockAdmin() {
+      const pin = document.getElementById('adminPinInput').value;
+      if (pin === '1234') {
+        document.getElementById('adminPinGate').classList.add('hidden');
+        document.getElementById('adminContent').classList.remove('hidden');
+        renderAdminQueue();
+        renderAdminBarbers();
+      } else {
+        alert('Invalid Manager PIN. Default demo PIN is 1234.');
+      }
+    }
+
+    function renderAdminQueue() {
+      document.getElementById('adminBookingCount').textContent = bookings.length;
+      const list = document.getElementById('adminAppointmentsList');
+      if (bookings.length === 0) {
+        list.innerHTML = `<div class="text-xs text-gray-400 py-1">No appointments in queue.</div>`;
+        return;
+      }
+      list.innerHTML = bookings.map(b => `
+        <div class="p-2.5 rounded-xl bg-primary border border-white/10 flex items-center justify-between text-xs">
+          <div>
+            <div class="font-bold text-white">${b.clientName} <span class="text-accent">(${b.refCode})</span></div>
+            <div class="text-[11px] text-gray-400">${b.date} ${b.time} • ${b.barberName}</div>
+          </div>
+          <div class="flex gap-1">
+            <button onclick="updateBookingStatus('${b.id}', 'Completed')" class="px-2 py-1 rounded bg-emerald-500/20 text-emerald-300 text-[10px]">Done</button>
+            <button onclick="updateBookingStatus('${b.id}', 'Cancelled')" class="px-2 py-1 rounded bg-rose-500/20 text-rose-300 text-[10px]">Cancel</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function updateBookingStatus(id, status) {
+      bookings = bookings.map(b => b.id === id ? { ...b, status } : b);
+      localStorage.setItem(STORAGE_KEY_BOOKINGS, JSON.stringify(bookings));
+      renderAdminQueue();
+    }
+
+    function clearCompletedBookings() {
+      bookings = bookings.filter(b => b.status !== 'Cancelled');
+      localStorage.setItem(STORAGE_KEY_BOOKINGS, JSON.stringify(bookings));
+      renderAdminQueue();
+    }
+
+    function renderAdminBarbers() {
+      document.getElementById('adminBarberCount').textContent = shopConfig.barbers.length;
+      const list = document.getElementById('adminBarbersList');
+      list.innerHTML = shopConfig.barbers.map(b => `
+        <div class="p-2.5 rounded-xl bg-primary border border-white/10 flex items-center justify-between text-xs">
+          <div class="flex items-center gap-2">
+            <img src="${b.avatar}" class="w-8 h-8 rounded-full object-cover border border-accent" />
+            <div>
+              <div class="font-bold text-white">${b.name}</div>
+              <div class="text-[10px] text-accent">Folder: /barbers/${b.folder}/ (${b.photoFilename})</div>
+            </div>
+          </div>
+          <button onclick="removeBarber('${b.id}')" class="px-2 py-1 rounded bg-rose-500/20 text-rose-300 text-[10px]">
+            <i class="fa-solid fa-trash-can"></i>
+          </button>
+        </div>
+      `).join('');
+    }
+
+    function addNewBarberWithFolder() {
+      const first = document.getElementById('newBarberFirst').value.trim();
+      const last = document.getElementById('newBarberLast').value.trim();
+      const specialty = document.getElementById('newBarberSpecialty').value.trim() || 'Precision Fades';
+      const fileInput = document.getElementById('newBarberPhotoFile');
+
+      if (!first || !last) {
+        alert('Please enter both first and last name for the barber.');
+        return;
+      }
+
+      const firstName = first.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const lastName = last.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const folderName = `${firstName}_${lastName}`;
+
+      const existingSameFolder = shopConfig.barbers.filter(b => b.folder === folderName);
+      const nextNum = String(existingSameFolder.length + 1).padStart(3, '0');
+      const ext = fileInput.files[0] ? fileInput.files[0].name.split('.').pop() : 'jpg';
+      const filename = `${folderName}_${nextNum}.${ext}`;
+
+      if (fileInput.files && fileInput.files[0]) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          saveBarberToConfig(first, last, folderName, filename, specialty, e.target.result);
+        };
+        reader.readAsDataURL(fileInput.files[0]);
+      } else {
+        const defaultAvatar = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80';
+        saveBarberToConfig(first, last, folderName, filename, specialty, defaultAvatar);
+      }
+    }
+
+    function saveBarberToConfig(first, last, folder, filename, specialty, avatar) {
+      const newBarber = {
+        id: 'brb-' + Date.now(),
+        firstName: first,
+        lastName: last,
+        name: `${first} ${last}`,
+        folder,
+        photoFilename: filename,
+        role: 'Master Barber',
+        specialty,
+        rating: '5.0',
+        avatar
+      };
+
+      shopConfig.barbers.push(newBarber);
+      localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(shopConfig));
+
+      document.getElementById('newBarberFirst').value = '';
+      document.getElementById('newBarberLast').value = '';
+      document.getElementById('newBarberSpecialty').value = '';
+      document.getElementById('newBarberPhotoFile').value = '';
+
+      renderAdminBarbers();
+      renderHome();
+      applyThemeVariables();
+      alert(`Barber folder created: /barbers/${folder}/\nPhoto saved as: ${filename}`);
+    }
+
+    function removeBarber(id) {
+      if (shopConfig.barbers.length <= 1) {
+        alert('You must keep at least one active barber chair.');
+        return;
+      }
+      shopConfig.barbers = shopConfig.barbers.filter(b => b.id !== id);
+      localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(shopConfig));
+      renderAdminBarbers();
+      renderHome();
+      applyThemeVariables();
+    }
+
+    function saveWhiteLabelConfig() {
+      shopConfig.shopName = document.getElementById('cfgShopName').value.trim() || 'ELITE CUTS';
+      shopConfig.tagline = document.getElementById('cfgTagline').value.trim();
+      shopConfig.primaryColor = document.getElementById('cfgPrimaryColor').value;
+      shopConfig.accentColor = document.getElementById('cfgAccentColor').value;
+      localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(shopConfig));
+      applyThemeVariables();
+      renderHome();
+      alert('Branding Updated!');
+    }
+
+    function exportConfigJSON() {
+      const payload = JSON.stringify({ shopConfig, bookings, loyaltyDB }, null, 2);
+      const blob = new Blob([payload], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `${shopConfig.shopName.toLowerCase().replace(/\s+/g, '-')}-backup.json`;
+      a.click();
+    }
+
+    function resetDemoData() {
+      localStorage.removeItem(STORAGE_KEY_CONFIG);
+      localStorage.removeItem(STORAGE_KEY_BOOKINGS);
+      localStorage.removeItem(STORAGE_KEY_LOYALTY);
+      location.reload();
+    }
+
+    applyThemeVariables();
+    renderHome();
+  </script>
+
+  <!-- PWA INSTALL & PORTAL ROUTER (?portal=admin) -->
+  <div id="pwaInstallBanner" class="fixed bottom-20 inset-x-4 max-w-md mx-auto z-50 hidden glass-card rounded-2xl p-3.5 border border-accent/50 shadow-2xl">
+    <div class="flex items-center justify-between gap-3">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl gold-gradient flex items-center justify-center text-[#1a1a2e] font-bold shrink-0">
+          <i class="fa-solid fa-mobile-screen-button"></i>
+        </div>
+        <div>
+          <h4 class="text-xs font-bold text-white">Install <span id="pwaShopName">Elite Cuts</span> App</h4>
+          <p id="pwaInstallSubtext" class="text-[11px] text-gray-300">1-tap booking & offline VIP punch card</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-1.5 shrink-0">
+        <button id="pwaInstallActionBtn" onclick="triggerPWAInstall()" class="px-3 py-1.5 rounded-lg gold-gradient text-[#1a1a2e] font-bold text-xs">
+          Install
+        </button>
+        <button onclick="dismissPWABanner()" class="w-7 h-7 rounded-lg bg-white/10 text-gray-400 flex items-center justify-center text-xs">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let deferredInstallPrompt = null;
+
+    window.addEventListener('load', () => {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js').catch(err => console.warn('SW setup skipped:', err));
+      }
+
+      const params = new URLSearchParams(window.location.search);
+      const targetTab = params.get('tab');
+      if (targetTab && ['home', 'book', 'loyalty', 'gallery'].includes(targetTab)) {
+        switchTab(targetTab);
+      }
+
+      if (params.get('portal') === 'admin' || params.get('portal') === 'management') {
+        setTimeout(() => {
+          openAdminModal();
+        }, 120);
+      }
+
+      const isIOS = /iphone|ipad|ipod/i.test(window.navigator.userAgent);
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+      if (isIOS && !isStandalone && !localStorage.getItem('EC_PWA_DISMISSED')) {
+        document.getElementById('pwaShopName').textContent = shopConfig.shopName;
+        document.getElementById('pwaInstallSubtext').innerHTML = 'Tap <i class="fa-solid fa-arrow-up-from-bracket text-accent mx-0.5"></i> Share then <b>"Add to Home Screen"</b>';
+        document.getElementById('pwaInstallActionBtn').classList.add('hidden');
+        document.getElementById('pwaInstallBanner').classList.remove('hidden');
+      }
+    });
+
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      if (!localStorage.getItem('EC_PWA_DISMISSED')) {
+        document.getElementById('pwaShopName').textContent = shopConfig.shopName;
+        document.getElementById('pwaInstallBanner').classList.remove('hidden');
+      }
+    });
+
+    async function triggerPWAInstall() {
+      if (!deferredInstallPrompt) return;
+      deferredInstallPrompt.prompt();
+      const { outcome } = await deferredInstallPrompt.userChoice;
+      if (outcome === 'accepted') {
+        document.getElementById('pwaInstallBanner').classList.add('hidden');
+      }
+      deferredInstallPrompt = null;
+    }
+
+    function dismissPWABanner() {
+      localStorage.setItem('EC_PWA_DISMISSED', 'true');
+      document.getElementById('pwaInstallBanner').classList.add('hidden');
+    }
+  </script>
+</body>
+</html>
