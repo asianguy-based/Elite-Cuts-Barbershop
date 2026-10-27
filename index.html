@@ -146,7 +146,14 @@
     </section>
 
     <!-- ================= VIEW 2: 4-STEP INTERACTIVE BOOKING ================= -->
-    <section id="view-book" class="hidden space-y-5 animate-view">
+    <!-- REUSABLE SUB-PAGE HEADER WITH BACK BUTTON -->
+<div class="flex items-center justify-between pb-2 border-b border-white/10">
+  <button onclick="switchTab('home')" class="flex items-center gap-1.5 text-xs font-semibold text-accent hover:opacity-80 transition py-1 px-2.5 rounded-lg bg-white/5 border border-white/10">
+    <i class="fa-solid fa-arrow-left text-[10px]"></i> Back to Shop
+  </button>
+  <span class="text-[10px] uppercase tracking-widest text-gray-400 font-medium" id="subPageIndicator">Elite Cuts Lounge</span>
+</div>
+<section id="view-book" class="hidden space-y-5 animate-view">
       <div class="glass-card rounded-2xl p-4">
         <div class="flex items-center justify-between mb-2">
           <span class="text-xs font-semibold uppercase tracking-wider text-accent">Instant Chair Reservation</span>
@@ -282,6 +289,7 @@
     </section>
 
     <!-- ================= VIEW 3: VIP LOYALTY WALLET ================= -->
+
     <section id="view-loyalty" class="hidden space-y-5 animate-view">
       <div class="rounded-2xl p-5 gold-gradient text-[#1a1a2e] shadow-2xl relative overflow-hidden">
         <div class="flex justify-between items-start">
