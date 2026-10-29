@@ -6,7 +6,7 @@ compatibility_date = "2025-10-01"
 #   npx wrangler kv namespace create BOOKINGS
 [[kv_namespaces]]
 binding = "BOOKINGS"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
+id = "356156f8bbf84f5580d54202fb427f70"
 
 [vars]
 # Origin of the static Pages site allowed to call this API. "*" allows any origin.
