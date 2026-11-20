@@ -36,11 +36,11 @@ Without a backend the app runs in **demo mode**: bookings, loyalty, and settings
 cd worker
 npx wrangler kv namespace create BOOKINGS   # paste the returned id into wrangler.toml
 npx wrangler secret put MANAGER_PIN         # the real manager PIN
-npx wrangler secret put STRIPE_WEBHOOK_SECRET   # optional; enables signature checks on /api/webhook/stripe
+npx wrangler secret put STRIPE_WEBHOOK_SECRET   # recommended; verifies signatures on /api/webhook/stripe
 npx wrangler deploy
 ```
 
-Then open the app, go to **Manager Studio → Settings → API URL**, paste the Worker URL (e.g. `https://elite-cuts-api.<you>.workers.dev`), and click *Apply Settings*. Leaving the field blank keeps demo mode. Optionally set `ALLOWED_ORIGIN` in `wrangler.toml` to your Pages origin instead of `*`.
+Then open the app, go to **Manager Studio → Settings → API URL**, paste the Worker URL (e.g. `https://elite-cuts-api.<you>.workers.dev`), and click *Apply Settings*. Leaving the field blank keeps demo mode. `ALLOWED_ORIGIN` in `wrangler.toml` is a comma-separated list of browser origins allowed to call the API; `https://*.your-project.pages.dev` also covers Pages preview deploys. Add your custom domain there if you add one (`*` allows any site).
 
 Endpoints: `GET /api/health`, `GET /api/slots?date=&barberId=`, `POST /api/bookings`, `GET /api/loyalty?phone=`, `POST /api/manager/login`, `GET /api/manager/bookings?from=&to=`, `PATCH /api/manager/bookings/:id`, `GET /api/manager/loyalty.csv`, `POST /api/webhook/stripe`. Manager routes require the `X-Manager-Token` header returned by login (valid for the current UTC day).
 
@@ -50,7 +50,9 @@ Endpoints: `GET /api/health`, `GET /api/slots?date=&barberId=`, `POST /api/booki
 
 **Static deploy:** the front end stays a plain static site. Deploy the repo root (`index.html`, `manifest.json`, `sw.js`) to Cloudflare Pages with no build step; the Worker is deployed separately from `worker/`.
 
-**Repo note:** `Elite-Cuts-Barbershop.rar` and `Elite-Cuts-Barbershop.txt` describe an older layout (`h5-webapp/` + `wordpress-theme/`); the live app is the flat set of files in the repo root.
+**Stripe webhook security:** the webhook never trusts an unauthenticated "paid" message. With `STRIPE_WEBHOOK_SECRET` set it checks Stripe's signature; without it, but with `STRIPE_SECRET_KEY` set, it asks Stripe directly whether the checkout session was paid; with neither, it refuses and the manager marks deposits paid by hand.
+
+**Manager PIN lockout:** after 5 wrong PINs from one IP address, login is locked for 15 minutes.
 
 ---
 

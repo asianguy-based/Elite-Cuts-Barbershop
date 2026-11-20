@@ -8,8 +8,15 @@
  *   ref:{refCode}                -> id                        (Stripe client_reference_id lookup)
  *   loyalty:{normalizedPhone}    -> { name, phone, points, stamps, lastVisit, history: [] }
  *
- * Secrets: MANAGER_PIN (required), STRIPE_WEBHOOK_SECRET (optional)
- * Vars:    ALLOWED_ORIGIN (default "*")
+ *   lock:{ip}                    -> failed manager-login count  (expires after 15 min)
+ *
+ * Secrets: MANAGER_PIN (required)
+ *          STRIPE_WEBHOOK_SECRET (recommended) — verifies Stripe webhook signatures
+ *          STRIPE_SECRET_KEY (fallback) — if no webhook secret is set, each webhook's
+ *            checkout session is re-fetched from Stripe and must be paid
+ *          With neither set, the webhook refuses to mark anything paid.
+ * Vars:    ALLOWED_ORIGIN — comma-separated list of allowed browser origins; an entry
+ *          like "https://*.example.pages.dev" also matches preview subdomains. "*" = any.
  */
 
 const ALL_CAP = 2000;
@@ -22,12 +29,38 @@ const enc = new TextEncoder();
 const json = (data, status = 200, headers = {}) =>
   new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', ...headers } });
 
-const corsHeaders = (env) => ({
-  'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN || '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, X-Manager-Token',
-  'Access-Control-Max-Age': '86400'
-});
+const LOGIN_MAX_FAILS = 5;
+const LOGIN_LOCK_SECONDS = 900;
+
+/** Match a request Origin against the ALLOWED_ORIGIN list ("*", exact origins, or https://*.domain). */
+function allowedOrigin(env, origin) {
+  const list = String(env.ALLOWED_ORIGIN || '*').split(',').map((s) => s.trim()).filter(Boolean);
+  if (list.includes('*')) return '*';
+  if (!origin) return null;
+  for (const entry of list) {
+    if (entry === origin) return origin;
+    const m = entry.match(/^(https?):\/\/\*\.(.+)$/);
+    if (m) {
+      try {
+        const u = new URL(origin);
+        if (u.protocol === `${m[1]}:` && u.hostname.endsWith(`.${m[2]}`) && !u.port) return origin;
+      } catch { /* malformed origin */ }
+    }
+  }
+  return null;
+}
+
+const corsHeaders = (env, origin) => {
+  const allow = allowedOrigin(env, origin);
+  const h = {
+    'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Manager-Token',
+    'Access-Control-Max-Age': '86400',
+    'Vary': 'Origin'
+  };
+  if (allow) h['Access-Control-Allow-Origin'] = allow;
+  return h;
+};
 
 const today = () => new Date().toISOString().slice(0, 10);
 const normalizePhone = (p) => String(p || '').replace(/\D/g, '');
@@ -126,7 +159,14 @@ async function createBooking(req, env) {
 
   const isDeposit = body.paymentMode === 'deposit';
   const id = `${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 8)}`;
-  const refCode = 'EC-' + String(Math.floor(1000 + Math.random() * 9000));
+  // Ref codes are looked up by Stripe webhooks, so never reuse one that is still mapped.
+  let refCode;
+  for (let i = 0; i < 20 && !refCode; i++) {
+    const digits = i < 10 ? 4 : 6;
+    const candidate = 'EC-' + String(Math.floor(10 ** (digits - 1) + Math.random() * 9 * 10 ** (digits - 1)));
+    if (!(await env.BOOKINGS.get(`ref:${candidate}`))) refCode = candidate;
+  }
+  if (!refCode) return json({ error: 'Could not allocate a reference code, please retry' }, 503);
   const booking = {
     id, refCode,
     services: body.services.map(String),
@@ -156,8 +196,19 @@ async function createBooking(req, env) {
 
 async function managerLogin(req, env) {
   if (!env.MANAGER_PIN) return json({ error: 'MANAGER_PIN secret not configured' }, 500);
+  // Brute-force guard: a short PIN must not be guessable by scripting this endpoint.
+  const ip = req.headers.get('CF-Connecting-IP') || 'unknown';
+  const lockKey = `lock:${ip}`;
+  const fails = Number(await env.BOOKINGS.get(lockKey)) || 0;
+  if (fails >= LOGIN_MAX_FAILS) {
+    return json({ error: 'Too many attempts. Try again in 15 minutes.' }, 429, { 'Retry-After': String(LOGIN_LOCK_SECONDS) });
+  }
   const body = await readBody(req);
-  if (!body || !timingSafeEqual(body.pin || '', env.MANAGER_PIN)) return json({ error: 'Invalid PIN' }, 401);
+  if (!body || !timingSafeEqual(body.pin || '', env.MANAGER_PIN)) {
+    await env.BOOKINGS.put(lockKey, String(fails + 1), { expirationTtl: LOGIN_LOCK_SECONDS });
+    return json({ error: 'Invalid PIN' }, 401);
+  }
+  if (fails) await env.BOOKINGS.delete(lockKey);
   return json({ token: await managerToken(env), validFor: today() });
 }
 
@@ -217,16 +268,35 @@ async function verifyStripeSignature(payload, header, secret) {
   return sigs.some((s) => timingSafeEqual(s, expected));
 }
 
+/** Fallback when no webhook secret is set: ask Stripe directly whether the session is really paid. */
+async function fetchPaidStripeSession(env, sessionId) {
+  if (!/^cs_[A-Za-z0-9_]+$/.test(sessionId || '')) return null;
+  const res = await fetch(`https://api.stripe.com/v1/checkout/sessions/${sessionId}`, {
+    headers: { Authorization: `Bearer ${env.STRIPE_SECRET_KEY}` }
+  });
+  if (!res.ok) return null;
+  const session = await res.json();
+  return session.payment_status === 'paid' ? session : null;
+}
+
 async function stripeWebhook(req, env) {
   const payload = await req.text();
   if (env.STRIPE_WEBHOOK_SECRET) {
     const ok = await verifyStripeSignature(payload, req.headers.get('Stripe-Signature'), env.STRIPE_WEBHOOK_SECRET);
     if (!ok) return json({ error: 'Invalid signature' }, 400);
+  } else if (!env.STRIPE_SECRET_KEY) {
+    // Never trust an unauthenticated "payment completed" claim.
+    return json({ error: 'Stripe webhook not configured (set STRIPE_WEBHOOK_SECRET)' }, 503);
   }
   let event;
   try { event = JSON.parse(payload); } catch { return json({ error: 'Invalid JSON' }, 400); }
   if (event.type === 'checkout.session.completed') {
-    const refCode = event.data?.object?.client_reference_id;
+    let session = event.data?.object;
+    if (!env.STRIPE_WEBHOOK_SECRET) {
+      session = await fetchPaidStripeSession(env, session?.id);
+      if (!session) return json({ error: 'Session not found or not paid' }, 400);
+    }
+    const refCode = session?.client_reference_id;
     const id = refCode ? await kvGet(env, `ref:${refCode}`) : null;
     const booking = id ? await kvGet(env, `booking:${id}`) : null;
     if (booking) await markPaid(env, booking);
@@ -249,7 +319,7 @@ const routes = [
 
 export default {
   async fetch(req, env) {
-    const cors = corsHeaders(env);
+    const cors = corsHeaders(env, req.headers.get('Origin'));
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: cors });
     const url = new URL(req.url);
     let res;
