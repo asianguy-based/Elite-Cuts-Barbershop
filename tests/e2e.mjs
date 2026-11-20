@@ -87,8 +87,9 @@ function stopServer() { if (server) { server.kill(); server = null; } }
  * extraConfig: merged into the stored config before page scripts run (every navigation).
  * seedBookings: written once to localStorage before first load.
  */
-async function newApp(browser, vp, { mode = 'demo', stub = null, extraConfig = null, seedBookings = null, serviceWorkers = 'block' } = {}) {
+async function newApp(browser, vp, { mode = 'demo', stub = null, extraConfig = null, seedBookings = null, serviceWorkers = 'block', contextOptions = {} } = {}) {
   const context = await browser.newContext({
+    ...contextOptions,
     viewport: { width: vp.width, height: vp.height },
     timezoneId: TZ,
     serviceWorkers,
@@ -558,6 +559,76 @@ async function pwaSuite(browser, vp) {
   });
 }
 
+// "Install app" footer: one-tap prompt where the browser offers one, step-by-step help elsewhere,
+// hidden once the app runs from the home screen.
+const UA = {
+  iphone: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.1 Mobile/15E148 Safari/604.1',
+  instagram: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 Instagram 350.0.0.0',
+  firefoxAndroid: 'Mozilla/5.0 (Android 14; Mobile; rv:132.0) Gecko/132.0 Firefox/132.0'
+};
+
+async function installSuite(browser, vp) {
+  await test(`[${vp.name}] install footer: one-tap browser prompt when offered`, async () => {
+    const { context, page, errors, stats } = await newApp(browser, vp);
+    try {
+      await page.goto(BASE + '/', { waitUntil: 'load' });
+      assert(await page.locator('#installAppFooter').isVisible(), 'footer visible on home');
+      await page.locator('#installAppFooter').scrollIntoViewIfNeeded();
+      await noHorizontalScroll(page, 'home with install footer');
+      await shot(page, `${vp.name}-install-footer`);
+      // Simulate Chrome offering the install prompt.
+      await page.evaluate(() => {
+        const e = new Event('beforeinstallprompt', { cancelable: true });
+        window.__prompted = 0;
+        e.prompt = () => { window.__prompted++; };
+        e.userChoice = Promise.resolve({ outcome: 'accepted' });
+        window.dispatchEvent(e);
+      });
+      await page.click('#installAppFooterBtn');
+      await page.waitForFunction(() => window.__prompted === 1);
+      await page.waitForSelector('#installAppFooter', { state: 'hidden' });
+      assert(!(await page.locator('#installHelpSheet').isVisible()), 'no help sheet when the browser prompt was used');
+      assert(errors.length === 0, 'no errors: ' + errors.join(' | '));
+      assert(stats.liveHits === 0, 'live Worker never contacted');
+    } finally { await context.close(); }
+  });
+
+  for (const [label, ua, expect] of [
+    ['iPhone Safari', UA.iphone, 'Add to Home Screen'],
+    ['Instagram in-app browser', UA.instagram, 'Open in Safari'],
+    ['Firefox on Android', UA.firefoxAndroid, 'Add to Home screen'],
+    ['desktop browser without prompt', null, 'install icon']
+  ]) {
+    await test(`[${vp.name}] install footer: step-by-step help for ${label}`, async () => {
+      const { context, page, errors, stats } = await newApp(browser, vp, { contextOptions: ua ? { userAgent: ua } : {} });
+      try {
+        await page.goto(BASE + '/', { waitUntil: 'load' });
+        await page.locator('#installAppFooterBtn').focus();
+        await page.keyboard.press('Enter');
+        await page.waitForSelector('#installHelpSheet:not(.hidden)');
+        assertIncludes(await page.textContent('#installHelpSteps'), expect, `${label} steps`);
+        if (label === 'iPhone Safari') await shot(page, `${vp.name}-install-help-iphone`);
+        await page.keyboard.press('Escape');
+        await page.waitForSelector('#installHelpSheet', { state: 'hidden' });
+        assert(await page.evaluate(() => document.activeElement.id) === 'installAppFooterBtn', 'focus returns to Install app');
+        assert(errors.length === 0, 'no errors: ' + errors.join(' | '));
+        assert(stats.liveHits === 0, 'live Worker never contacted');
+      } finally { await context.close(); }
+    });
+  }
+
+  await test(`[${vp.name}] install footer: hidden when opened from the home screen`, async () => {
+    const { context, page, errors } = await newApp(browser, vp, { contextOptions: { userAgent: UA.iphone } });
+    try {
+      await context.addInitScript(() => Object.defineProperty(navigator, 'standalone', { get: () => true }));
+      await page.goto(BASE + '/', { waitUntil: 'load' });
+      assert(await page.locator('#installAppFooter').count() === 1 && !(await page.locator('#installAppFooter').isVisible()), 'footer hidden in installed app');
+      assert(!(await page.locator('#pwaInstallBanner').isVisible()), 'banner hidden in installed app');
+      assert(errors.length === 0, 'no errors: ' + errors.join(' | '));
+    } finally { await context.close(); }
+  });
+}
+
 async function shellSuite() {
   await test('sw.js APP_SHELL lists every local css/js file and nothing missing', async () => {
     const swSrc = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
@@ -579,6 +650,7 @@ try {
     await datesSuite(browser, vp);
     await offlineSuite(browser, vp);
     await pwaSuite(browser, vp);
+    await installSuite(browser, vp);
   }
 } finally {
   await browser.close();

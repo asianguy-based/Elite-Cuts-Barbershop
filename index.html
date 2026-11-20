@@ -132,6 +132,20 @@
           <div class="flex justify-between"><span>Sunday</span><span id="hoursSunday" class="text-gray-400">10:00 AM – 4:00 PM</span></div>
         </div>
       </div>
+
+      <!-- INSTALL APP FOOTER: always available (unlike the dismissible banner); hidden once installed -->
+      <div id="installAppFooter" class="glass-card rounded-2xl p-4 flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3 min-w-0">
+          <img src="icons/icon-192.png" alt="" width="40" height="40" class="w-10 h-10 rounded-xl shrink-0" />
+          <div class="min-w-0">
+            <p class="text-sm font-bold text-white">Get the <span id="installFooterShopName">Elite Cuts</span> app</p>
+            <p class="text-[11px] text-gray-300">Book in one tap and keep your VIP card on your home screen.</p>
+          </div>
+        </div>
+        <button id="installAppFooterBtn" type="button" onclick="openInstallApp()" class="shrink-0 px-3.5 py-2 rounded-xl gold-gradient text-[#1a1a2e] font-bold text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-white">
+          <i class="fa-solid fa-download mr-1"></i> Install app
+        </button>
+      </div>
     </section>
 
     <!-- ================= VIEW 2: 4-STEP INTERACTIVE BOOKING ================= -->
@@ -476,6 +490,22 @@
   </div>
 
 
+
+  <!-- INSTALL HELP SHEET: step-by-step for browsers without a one-tap install prompt (iPhone Safari, Firefox, in-app browsers) -->
+  <div id="installHelpSheet" class="fixed inset-0 z-[60] hidden" role="dialog" aria-modal="true" aria-labelledby="installHelpTitle">
+    <div class="absolute inset-0 bg-black/60" onclick="closeInstallHelp()"></div>
+    <div class="absolute inset-x-0 bottom-0 max-w-md mx-auto glass-card rounded-t-3xl p-5 pb-8 border-t border-accent/40 space-y-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <img src="icons/icon-192.png" alt="" width="40" height="40" class="w-10 h-10 rounded-xl" />
+          <h3 id="installHelpTitle" class="font-brand text-lg text-accent">Add to your home screen</h3>
+        </div>
+        <button type="button" onclick="closeInstallHelp()" aria-label="Close" class="w-8 h-8 rounded-lg bg-white/10 text-gray-300 flex items-center justify-center"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <ol id="installHelpSteps" class="space-y-3 text-sm text-gray-200 list-none"></ol>
+      <button type="button" onclick="closeInstallHelp()" class="w-full py-2.5 rounded-xl bg-white/10 text-white text-sm font-semibold">Got it</button>
+    </div>
+  </div>
   <!-- PWA INSTALL & PORTAL ROUTER (?portal=admin) -->
   <div id="pwaInstallBanner" class="fixed bottom-20 inset-x-4 max-w-md mx-auto z-50 hidden glass-card rounded-2xl p-3.5 border border-accent/50 shadow-2xl">
     <div class="flex items-center justify-between gap-3">

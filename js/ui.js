@@ -17,6 +17,7 @@ export function applyThemeVariables() {
 }
 
 export function renderHome() {
+  refreshInstallFooter();   // keeps the footer's shop name in sync with white-label edits
   const srvList = document.getElementById('homeServicesList');
   srvList.innerHTML = shopConfig.services.map(s => `
     <div onclick="quickBookService('${s.id}')" class="glass-card rounded-xl p-3.5 flex items-center justify-between cursor-pointer hover:border-accent/60 transition">
@@ -98,7 +99,25 @@ export function selectLookbookStyle(title) {
 
 let deferredInstallPrompt = null;
 
+export const isInstalledApp = () =>
+  window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+/** Hide every install prompt once the app runs from the home screen or was just installed. */
+export function refreshInstallFooter() {
+  const footer = document.getElementById('installAppFooter');
+  if (!footer) return;
+  footer.classList.toggle('hidden', isInstalledApp());
+  const name = document.getElementById('installFooterShopName');
+  if (name) name.textContent = shopConfig.shopName;
+}
+
 export function listenForInstallPrompt() {
+  refreshInstallFooter();
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    document.getElementById('pwaInstallBanner').classList.add('hidden');
+    document.getElementById('installAppFooter')?.classList.add('hidden');
+  });
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault();
     deferredInstallPrompt = e;
@@ -128,6 +147,72 @@ export async function triggerPWAInstall() {
     document.getElementById('pwaInstallBanner').classList.add('hidden');
   }
   deferredInstallPrompt = null;
+}
+
+/** Steps for browsers that have no one-tap install prompt (all of iOS, Firefox, in-app browsers). */
+export function installSteps(ua = window.navigator.userAgent) {
+  const share = '<i class="fa-solid fa-arrow-up-from-bracket text-accent mx-0.5" aria-hidden="true"></i>';
+  const isIOS = /iphone|ipad|ipod/i.test(ua) || (/macintosh/i.test(ua) && navigator.maxTouchPoints > 1);
+  const inAppBrowser = /FBAN|FBAV|Instagram|Line\/|TikTok|Snapchat|Twitter|LinkedInApp/i.test(ua);
+  if (inAppBrowser) {
+    return [
+      `Tap the <b>⋯</b> menu in the corner and choose <b>Open in ${isIOS ? 'Safari' : 'browser'}</b>.`,
+      'On the page that opens, tap <b>Install app</b> again.'
+    ];
+  }
+  if (isIOS) {
+    return [
+      `Tap the Share button ${share} ${/CriOS|FxiOS|EdgiOS/i.test(ua) ? 'in the address bar' : 'at the bottom of Safari'}.`,
+      'Scroll down and tap <b>Add to Home Screen</b>.',
+      'Tap <b>Add</b>. The Elite Cuts logo appears on your home screen.'
+    ];
+  }
+  if (/android/i.test(ua)) {
+    return [
+      'Open your browser menu <b>⋮</b> (top right, or bottom bar on Samsung Internet).',
+      'Tap <b>Install app</b> or <b>Add to Home screen</b>.',
+      'Confirm with <b>Install</b> / <b>Add</b>.'
+    ];
+  }
+  return [
+    'In Chrome or Edge, click the install icon <i class="fa-solid fa-display text-accent mx-0.5" aria-hidden="true"></i> at the right end of the address bar.',
+    'In Safari on a Mac, choose <b>File → Add to Dock</b>.',
+    'Or open this page on your phone and tap <b>Install app</b>.'
+  ];
+}
+
+let installHelpReturnFocus = null;
+
+export function closeInstallHelp() {
+  document.getElementById('installHelpSheet').classList.add('hidden');
+  document.removeEventListener('keydown', installHelpKeydown);
+  installHelpReturnFocus?.focus();
+}
+
+function installHelpKeydown(e) {
+  if (e.key === 'Escape') closeInstallHelp();
+}
+
+/** "Install app" button: use the browser's one-tap prompt when it offers one, otherwise show the steps. */
+export async function openInstallApp() {
+  if (deferredInstallPrompt) {
+    const promptEvent = deferredInstallPrompt;
+    deferredInstallPrompt = null;               // a prompt event can only be used once
+    promptEvent.prompt();
+    const { outcome } = await promptEvent.userChoice;
+    if (outcome === 'accepted') {
+      document.getElementById('pwaInstallBanner').classList.add('hidden');
+      document.getElementById('installAppFooter')?.classList.add('hidden');
+    }
+    return;
+  }
+  installHelpReturnFocus = document.activeElement;
+  document.getElementById('installHelpSteps').innerHTML = installSteps().map((step, i) =>
+    `<li class="flex gap-3"><span class="w-6 h-6 rounded-full gold-gradient text-[#1a1a2e] text-xs font-bold flex items-center justify-center shrink-0">${i + 1}</span><span>${step}</span></li>`
+  ).join('');
+  document.getElementById('installHelpSheet').classList.remove('hidden');
+  document.addEventListener('keydown', installHelpKeydown);
+  document.querySelector('#installHelpSheet button[aria-label="Close"]').focus();
 }
 
 export function dismissPWABanner() {

@@ -12,7 +12,7 @@ import {
 } from './admin.js';
 import {
   applyThemeVariables, dismissPWABanner, listenForInstallPrompt, renderHome, selectLookbookStyle,
-  showIOSInstallHint, switchTab, triggerPWAInstall
+  closeInstallHelp, openInstallApp, showIOSInstallHint, switchTab, triggerPWAInstall
 } from './ui.js';
 
 // INLINE HANDLER GLOBALS — the markup (index.html and the HTML strings rendered by the modules)
@@ -28,8 +28,8 @@ Object.assign(window, {
   // manager portal
   addNewBarberWithFolder, clearCompletedBookings, closeAdminModal, exportConfigJSON, exportLoyaltyCSV,
   importLoyaltyCSV, removeBarber, resetDemoData, saveWhiteLabelConfig, unlockAdmin, updateBookingStatus,
-  // tabs, lookbook, PWA banner
-  dismissPWABanner, selectLookbookStyle, switchTab, triggerPWAInstall
+  // tabs, lookbook, PWA banner + Install app footer
+  closeInstallHelp, dismissPWABanner, openInstallApp, selectLookbookStyle, switchTab, triggerPWAInstall
 });
 
 applyThemeVariables();
