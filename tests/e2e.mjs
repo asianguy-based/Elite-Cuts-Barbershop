@@ -507,6 +507,57 @@ async function datesSuite(browser, vp) {
   });
 }
 
+// Install-to-home-screen: real PNG icons, a start URL that is not redirected by Pages,
+// and the installed app opening offline at its start URL and shortcut URLs.
+const pngSize = (buf) => (buf.slice(1, 4).toString() === 'PNG' ? { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20), alpha: buf[25] === 6 } : null);
+
+async function pwaSuite(browser, vp) {
+  await test(`[${vp.name}] installable: PNG icons, Chrome install check, offline start URL and shortcuts`, async () => {
+    const man = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'), 'utf8'));
+    const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+    const urls = [man.start_url, man.id, ...(man.shortcuts || []).map(s => s.url)];
+    assert(urls.every(u => !/index\.html/.test(u)), 'manifest never points at index.html (Pages redirects it): ' + urls.join(', '));
+    assert(!/data:image\/svg/.test(JSON.stringify(man.icons)) && !/apple-touch-icon" href="data:/.test(html), 'icons are files, not data: SVGs');
+    const want = { 'any:192x192': 192, 'any:512x512': 512, 'maskable:512x512': 512 };
+    for (const [key, size] of Object.entries(want)) {
+      const [purpose, sizes] = key.split(':');
+      const icon = man.icons.find(i => i.purpose === purpose && i.sizes === sizes);
+      assert(icon && icon.type === 'image/png', `manifest has a ${purpose} ${sizes} PNG`);
+      const dim = pngSize(fs.readFileSync(path.join(ROOT, icon.src)));
+      assert(dim && dim.w === size && dim.h === size, `${icon.src} is ${size}x${size}, got ${JSON.stringify(dim)}`);
+      if (purpose === 'maskable') assert(!dim.alpha, 'maskable icon is opaque');
+    }
+    const apple = (html.match(/rel="apple-touch-icon" href="([^"]+)"/) || [])[1];
+    const appleDim = apple && pngSize(fs.readFileSync(path.join(ROOT, apple)));
+    assert(appleDim && appleDim.w === 180 && appleDim.h === 180 && !appleDim.alpha, 'apple-touch-icon is an opaque 180x180 PNG');
+
+    const { context, page, errors, stats } = await newApp(browser, vp, { serviceWorkers: 'allow' });
+    try {
+      await page.goto(BASE + '/', { waitUntil: 'load' });
+      await page.evaluate(async () => { await navigator.serviceWorker.ready; });
+      await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 10000 });
+      await page.waitForTimeout(300);
+      const cdp = await context.newCDPSession(page);
+      const { installabilityErrors } = await cdp.send('Page.getInstallabilityErrors');
+      assert(installabilityErrors.length === 0, 'Chrome reports installable: ' + JSON.stringify(installabilityErrors));
+      const { errors: manErrors } = await cdp.send('Page.getAppManifest');
+      assert(manErrors.length === 0, 'manifest parses cleanly: ' + JSON.stringify(manErrors));
+
+      await context.setOffline(true);
+      for (const u of [man.start_url, ...(man.shortcuts || []).map(s => s.url), './?portal=admin']) {
+        const res = await page.goto(new URL(u, BASE + '/').href, { waitUntil: 'load' });
+        assert(res && res.ok(), `offline ${u} answered from cache`);
+        assert(await page.textContent('#headerShopName') === 'ELITE CUTS', `offline ${u} renders the app`);
+      }
+      assert(await page.locator('#portalScreen, [id*="admin"]').count() > 0, 'portal route renders offline');
+      const pageErrors = errors.filter(e => e.startsWith('pageerror'));
+      assert(pageErrors.length === 0, 'no page errors:\n' + pageErrors.join('\n'));
+      assert(stats.liveHits === 0, 'no live Worker hits');
+      await context.setOffline(false);
+    } finally { await context.close(); }
+  });
+}
+
 async function shellSuite() {
   await test('sw.js APP_SHELL lists every local css/js file and nothing missing', async () => {
     const swSrc = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
@@ -527,6 +578,7 @@ try {
     await nextChairSuite(browser, vp);
     await datesSuite(browser, vp);
     await offlineSuite(browser, vp);
+    await pwaSuite(browser, vp);
   }
 } finally {
   await browser.close();
