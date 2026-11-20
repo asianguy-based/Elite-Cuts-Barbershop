@@ -8,7 +8,7 @@ import { switchTab } from './ui.js';
 export let currentBooking = {
   serviceIds: ['srv-1'],
   barberId: 'brb-1',
-  date: new Date().toISOString().split('T')[0],
+  date: localDateStr(new Date()),   // the shop's local day, not UTC (UTC is already tomorrow on US evenings)
   time: '11:00 AM',
   paymentMode: 'deposit',
   clientName: '',
@@ -128,10 +128,16 @@ export let remoteBookedSlots = { key: '', times: [] };
 
 export function renderTimeSlots() {
   const dateInput = document.getElementById('bookingDateInput');
+  const today = localDateStr(new Date());
+  dateInput.min = today;
   if (!dateInput.value) {
     dateInput.value = currentBooking.date;
   }
+  if (dateInput.value < today) dateInput.value = today;   // no bookings in the past
   currentBooking.date = dateInput.value;
+  const now = new Date();
+  const cutoffMin = now.getHours() * 60 + now.getMinutes() + NEXT_CHAIR_LEAD_MIN;   // same cutoff as the card
+  const isPast = (slot) => currentBooking.date === today && (slotToMinutes(slot) ?? Infinity) < cutoffMin;
 
   // When a backend is configured, fetch booked times for this date+barber once and re-render.
   const slotKey = `${currentBooking.date}|${currentBooking.barberId}`;
@@ -148,9 +154,19 @@ export function renderTimeSlots() {
   }
   const remoteTaken = apiConfigured() && remoteBookedSlots.key === slotKey ? remoteBookedSlots.times : [];
 
+  const unavailable = (slot) => isPast(slot) || remoteTaken.includes(slot) || isSlotTakenLocally(currentBooking.barberId, currentBooking.date, slot);
+  // Never leave a past or taken time selected: move to the first open one (or none).
+  if (!currentBooking.time || unavailable(currentBooking.time)) {
+    currentBooking.time = shopConfig.timeSlots.find(slot => !unavailable(slot)) || '';
+  }
+
   const grid = document.getElementById('bookingTimeSlotsGrid');
+  if (!currentBooking.time) {
+    grid.innerHTML = `<p class="col-span-full text-sm text-gray-400 py-2">No open times left on this day. Please pick another date.</p>`;
+    return;
+  }
   grid.innerHTML = shopConfig.timeSlots.map(slot => {
-    const isTaken = remoteTaken.includes(slot) || isSlotTakenLocally(currentBooking.barberId, currentBooking.date, slot);
+    const isTaken = unavailable(slot);
     const isSelected = currentBooking.time === slot && !isTaken;
     if (isTaken) {
       return `<button disabled class="py-2.5 rounded-xl bg-white/5 text-gray-600 text-xs font-medium line-through border border-white/5 cursor-not-allowed">${slot}</button>`;
@@ -277,6 +293,7 @@ export function pickAnotherTime() {
 }
 
 export function goToBookingStep(step) {
+  if (step === 4 && !currentBooking.time) step = 3;   // no open time chosen on this date yet
   document.getElementById('bookConfirmation').classList.add('hidden');
   [1, 2, 3, 4].forEach(s => {
     document.getElementById(`bookStep${s}`).classList.toggle('hidden', s !== step);

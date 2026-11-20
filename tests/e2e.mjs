@@ -461,6 +461,52 @@ async function nextChairSuite(browser, vp) {
   });
 }
 
+async function datesSuite(browser, vp) {
+  // At 2:10 PM the booking flow must not offer the past: date min is today, earlier slots disabled,
+  // and the default 11:00 AM selection moves to the first open slot.
+  await test(`[${vp.name}] booking flow: no past dates or times`, async () => {
+    const { context, page, errors, stats } = await newApp(browser, vp);
+    try {
+      await page.goto(BASE + '/', { waitUntil: 'load' });
+      await page.evaluate(() => { switchTab('book'); goToBookingStep(3); });
+      await page.waitForSelector('#bookStep3:not(.hidden)');
+      assert(await page.inputValue('#bookingDateInput') === TODAY, 'date defaults to local today');
+      assert(await page.getAttribute('#bookingDateInput', 'min') === TODAY, 'date input min is today');
+      const btn = (t) => page.locator('#bookingTimeSlotsGrid button', { hasText: t });
+      assert(await btn('11:00 AM').isDisabled(), '11:00 AM (past) disabled');
+      assert(!(await btn('02:30 PM').isDisabled()), '02:30 PM open');
+      assertIncludes(await btn('02:30 PM').getAttribute('class'), 'gold-gradient', 'first open slot auto-selected');
+      // Typing a past date snaps back to today.
+      await page.fill('#bookingDateInput', '2026-11-01');
+      await page.dispatchEvent('#bookingDateInput', 'change');
+      assert(await page.inputValue('#bookingDateInput') === TODAY, 'past date snapped to today');
+      assert(errors.length === 0, 'no errors: ' + errors.join(' | '));
+      assert(stats.liveHits === 0, 'live Worker never contacted');
+    } finally { await context.close(); }
+  });
+
+  // 9:30 PM in New York is already tomorrow in UTC. The flow must still open on the local day,
+  // say nothing is left today, and not let the client continue without a time.
+  await test(`[${vp.name}] booking flow: evening uses local date, no slots left today`, async () => {
+    const { context, page, errors, stats } = await newApp(browser, vp);
+    try {
+      await page.clock.setSystemTime(new Date('2026-11-18T21:30:00-05:00'));
+      await page.goto(BASE + '/', { waitUntil: 'load' });
+      await page.evaluate(() => { switchTab('book'); goToBookingStep(3); });
+      await page.waitForSelector('#bookStep3:not(.hidden)');
+      assert(await page.inputValue('#bookingDateInput') === TODAY, 'evening still defaults to local today, got ' + await page.inputValue('#bookingDateInput'));
+      assertIncludes(await page.textContent('#bookingTimeSlotsGrid'), 'No open times left', 'empty-day message');
+      await page.evaluate(() => goToBookingStep(4));
+      assert(await visible(page, '#bookStep3') && !(await visible(page, '#bookStep4')), 'cannot continue without a time');
+      await page.fill('#bookingDateInput', TOMORROW);
+      await page.dispatchEvent('#bookingDateInput', 'change');
+      assert(await page.locator('#bookingTimeSlotsGrid button').count() > 0, 'tomorrow has slots');
+      assert(errors.length === 0, 'no errors: ' + errors.join(' | '));
+      assert(stats.liveHits === 0, 'live Worker never contacted');
+    } finally { await context.close(); }
+  });
+}
+
 async function shellSuite() {
   await test('sw.js APP_SHELL lists every local css/js file and nothing missing', async () => {
     const swSrc = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
@@ -479,6 +525,7 @@ try {
   for (const vp of VIEWPORTS) {
     await coreSuite(browser, vp);
     await nextChairSuite(browser, vp);
+    await datesSuite(browser, vp);
     await offlineSuite(browser, vp);
   }
 } finally {
