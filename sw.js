@@ -1,4 +1,4 @@
-const CACHE_NAME = 'elite-cuts-h5-v1.3.1';
+const CACHE_NAME = 'elite-cuts-h5-v1.3.2';
 // Every same-origin file the app needs to boot offline. Add new css/js files here and bump CACHE_NAME.
 // Not './index.html': Cloudflare Pages 308-redirects it to './', and a cached redirect
 // cannot be replayed for a page load, which broke the installed app when offline.

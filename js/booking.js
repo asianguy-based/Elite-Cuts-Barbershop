@@ -37,7 +37,7 @@ export function selectPaymentMode(mode) {
   } else {
     chrBtn.className = 'p-2.5 rounded-xl border border-accent bg-white/10 text-left transition';
     depBtn.className = 'p-2.5 rounded-xl border border-white/10 bg-secondary text-left transition opacity-70';
-    btnText.textContent = `Confirm Appointment & Pay at Chair (+100 Pts)`;
+    btnText.textContent = `Confirm Appointment & Pay at Chair (+100 Pts after your visit)`;
   }
 }
 
@@ -386,7 +386,9 @@ export async function submitBooking() {
     }
     newBooking = Object.assign({}, newBooking, res.data.booking, { depositPaid: 0 });
     refCode = newBooking.refCode;
-    if (isDeposit) pointsLabel = `+${pointsEarned} VIP PTS pending until deposit is paid`;
+    pointsLabel = isDeposit
+      ? `+${pointsEarned} VIP PTS pending until deposit is paid`
+      : `+${pointsEarned} VIP PTS after your visit`;
     // Local mirror only (receipt + offline slot hint); the server is the source of truth.
     bookings.unshift(newBooking);
     saveBookings();

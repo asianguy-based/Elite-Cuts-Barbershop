@@ -1,4 +1,4 @@
-import { api, apiConfigured } from './api.js';
+import { api, apiConfigured, escapeHtml } from './api.js';
 import { LoyaltyVault, normalizePhone } from './storage.js';
 
 // VIP wallet: punch card + phone lookup.
@@ -44,10 +44,10 @@ export async function lookupLoyalty() {
   listEl.innerHTML = record.history.map(b => `
     <div class="p-3 rounded-xl bg-secondary border border-white/10 flex justify-between items-center">
       <div>
-        <div class="text-xs font-bold text-white">${(b.services || []).join(', ')}</div>
-        <div class="text-[11px] text-gray-400">${b.date} @ ${b.time} • ${b.barberName}</div>
+        <div class="text-xs font-bold text-white">${escapeHtml((b.services || []).join(', '))}</div>
+        <div class="text-[11px] text-gray-400">${escapeHtml(b.date)} @ ${escapeHtml(b.time)} • ${escapeHtml(b.barberName)}</div>
       </div>
-      <span class="text-[10px] px-2 py-0.5 rounded font-semibold bg-emerald-500/20 text-emerald-300">${b.status || b.refCode || ''}</span>
+      <span class="text-[10px] px-2 py-0.5 rounded font-semibold bg-emerald-500/20 text-emerald-300">${escapeHtml(b.status || b.refCode || '')}</span>
     </div>
   `).join('');
 }
