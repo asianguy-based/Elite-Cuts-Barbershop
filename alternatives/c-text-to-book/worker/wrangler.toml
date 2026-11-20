@@ -1,0 +1,23 @@
+name = "elite-cuts-api-d1"
+main = "src/index.js"
+compatibility_date = "2025-10-01"
+
+# One-time setup (not done for you; nothing here has been deployed):
+#   npx wrangler d1 create elite-cuts                       -> copy the database_id it prints below
+#   npx wrangler d1 execute elite-cuts --remote --file=schema.sql
+#   npx wrangler secret put MANAGER_PIN
+#   npx wrangler secret put STRIPE_WEBHOOK_SECRET
+#   npx wrangler deploy
+[[d1_databases]]
+binding = "DB"
+database_name = "elite-cuts"
+database_id = "00000000-0000-0000-0000-000000000000"   # placeholder: replace with the real id
+
+[vars]
+# Comma-separated list of sites allowed to call this API from a browser.
+# Requests from any other site get 403. Use "*" only for testing.
+ALLOWED_ORIGINS = "https://elite-cuts.pages.dev,http://localhost:8203"
+
+# Secrets (NOT stored here, set with `npx wrangler secret put <NAME>`):
+#   MANAGER_PIN            required, PIN for /api/manager/login
+#   STRIPE_WEBHOOK_SECRET  required for /api/webhook/stripe (unsigned webhooks are refused)

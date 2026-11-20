@@ -1,0 +1,1195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Elite Cuts · Text to Book</title>
+<meta name="description" content="Book a cut at Elite Cuts by text. Pick a service, a barber and a time in a quick chat.">
+<meta name="theme-color" content="#eef1f5" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f141a" media="(prefers-color-scheme: dark)">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #eef1f5;
+    --panel: #f8fafc;
+    --thread: #f3f5f8;
+    --bubble-shop: #ffffff;
+    --bubble-shop-border: #dce2ea;
+    --text: #141b26;
+    --muted: #556173;
+    --faint: #647083;
+    --line: #dce2ea;
+    --accent: #0e6a70;           /* deep teal: the one accent */
+    --accent-ink: #ffffff;
+    --accent-soft: #dcefef;
+    --accent-text: #0b5b60;
+    --ok: #23674a;
+    --ok-soft: #dff0e7;
+    --warn: #7f5410;
+    --warn-soft: #f5ead2;
+    --shadow: 0 1px 2px rgba(15, 23, 42, .06), 0 8px 30px rgba(15, 23, 42, .07);
+    --radius: 20px;
+    --font: "Figtree", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --display: var(--font);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f141a;
+      --panel: #151b23;
+      --thread: #0c1116;
+      --bubble-shop: #1b232d;
+      --bubble-shop-border: #27313d;
+      --text: #e6ebf1;
+      --muted: #9ba7b6;
+      --faint: #8794a4;
+      --line: #27313d;
+      --accent: #1b7c83;
+      --accent-ink: #ffffff;
+      --accent-soft: #14343a;
+      --accent-text: #7fd1d6;
+      --ok: #8fd0ad;
+      --ok-soft: #173126;
+      --warn: #e6bd72;
+      --warn-soft: #362b16;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 8px 30px rgba(0, 0, 0, .3);
+      color-scheme: dark;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg); color: var(--text);
+    font: 400 16px/1.45 var(--font);
+    -webkit-font-smoothing: antialiased;
+    -webkit-tap-highlight-color: transparent;
+  }
+  button, input { font: inherit; color: inherit; }
+  a { color: var(--accent-text); }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .muted { color: var(--muted); }
+  [hidden] { display: none !important; }
+
+  /* ---------- layout ---------- */
+  .app {
+    height: 100vh; height: 100dvh;
+    display: grid; grid-template-columns: 1fr;
+    max-width: 1120px; margin: 0 auto;
+  }
+  .side { display: none; }
+  .chat {
+    display: flex; flex-direction: column; min-height: 0; min-width: 0;
+    background: var(--thread);
+  }
+  @media (min-width: 900px) {
+    .app { grid-template-columns: 340px 1fr; gap: 28px; padding: 28px; }
+    .side { display: flex; flex-direction: column; gap: 18px; overflow-y: auto; padding: 4px 2px 4px 0; }
+    .chat { border-radius: 26px; border: 1px solid var(--line); box-shadow: var(--shadow); overflow: hidden; }
+  }
+
+  /* ---------- side contact card (desktop) ---------- */
+  .contact { background: var(--panel); border: 1px solid var(--line); border-radius: 26px; padding: 26px 24px; box-shadow: var(--shadow); }
+  .mono {
+    width: 44px; height: 44px; border-radius: 50%; flex: none;
+    display: grid; place-items: center;
+    background: var(--accent); color: var(--accent-ink);
+    font: 700 16px/1 var(--display); letter-spacing: .01em;
+  }
+  .mono.lg { width: 72px; height: 72px; font-size: 27px; }
+  .contact h1 { font: 800 30px/1.1 var(--display); margin: 16px 0 4px; letter-spacing: -.025em; }
+  .contact .tag { color: var(--muted); margin: 0 0 14px; }
+  .pill { display: inline-flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 600; padding: 5px 11px; border-radius: 999px; background: var(--ok-soft); color: var(--ok); }
+  .pill.closed { background: var(--warn-soft); color: var(--warn); }
+  .pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+  .side h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); margin: 22px 0 8px; font-weight: 600; }
+  .hours { width: 100%; border-collapse: collapse; font-size: 15px; }
+  .hours td { padding: 4px 0; }
+  .hours td:last-child { text-align: right; color: var(--muted); }
+  .hours tr.today td { font-weight: 700; color: var(--text); }
+  .people { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+  .people li { display: flex; gap: 12px; align-items: center; }
+  .people .mono { width: 36px; height: 36px; font-size: 14px; background: var(--accent-soft); color: var(--accent-text); }
+  .people small { display: block; color: var(--muted); font-size: 14px; }
+  .side-note { font-size: 15px; color: var(--muted); padding: 0 6px; }
+  .side-actions { display: flex; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
+
+  /* ---------- chat header ---------- */
+  .chat-head {
+    display: flex; align-items: center; gap: 12px;
+    padding: 12px 16px; padding-top: max(12px, env(safe-area-inset-top));
+    background: color-mix(in srgb, var(--panel) 88%, transparent);
+    border-bottom: 1px solid var(--line);
+    backdrop-filter: saturate(1.4) blur(12px); -webkit-backdrop-filter: saturate(1.4) blur(12px);
+  }
+  .chat-head .who { flex: 1; min-width: 0; }
+  .chat-head strong { display: block; font-size: 17px; line-height: 1.2; }
+  .chat-head .status { font-size: 14px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .icon-btn {
+    border: 0; background: transparent; padding: 8px 10px; border-radius: 12px; cursor: pointer;
+    color: var(--accent-text); font-weight: 600; font-size: 15px; display: inline-flex; align-items: center; gap: 6px; text-decoration: none;
+  }
+  .icon-btn:hover { background: var(--accent-soft); }
+  .icon-btn svg { width: 20px; height: 20px; }
+  @media (max-width: 480px) { .chat-head .icon-btn span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); } }
+  .item .meta a { white-space: nowrap; }
+
+  /* ---------- thread ---------- */
+  .thread {
+    flex: 1; overflow-y: auto; overscroll-behavior: contain;
+    padding: 18px 14px 10px;
+    display: flex; flex-direction: column;
+  }
+  @media (min-width: 900px) { .thread { padding: 24px 28px 12px; } }
+  .divider { align-self: center; font-size: 13px; color: var(--faint); margin: 6px 0 14px; font-weight: 500; }
+  .row { display: flex; margin-top: 10px; max-width: 100%; }
+  .row.cont { margin-top: 3px; }
+  .row.me { justify-content: flex-end; }
+  .bubble {
+    max-width: min(78%, 460px);
+    padding: 10px 15px; border-radius: var(--radius);
+    font-size: 16.5px; line-height: 1.42;
+    overflow-wrap: anywhere;
+  }
+  .shop .bubble { background: var(--bubble-shop); border: 1px solid var(--bubble-shop-border); border-bottom-left-radius: 20px; }
+  .me .bubble { background: var(--accent); color: var(--accent-ink); }
+  .shop.tail .bubble { border-bottom-left-radius: 6px; }
+  .me.tail .bubble { border-bottom-right-radius: 6px; }
+  .bubble.rich { padding: 16px 18px; width: min(88%, 380px); max-width: none; }
+  .bubble p { margin: 0; }
+  .bubble p + p { margin-top: 8px; }
+  .receipt { font-size: 13px; color: var(--faint); align-self: flex-end; margin: 4px 4px 0; }
+  .appear { animation: pop .22s cubic-bezier(.2, .8, .3, 1) both; }
+  @keyframes pop { from { opacity: 0; transform: translateY(6px) scale(.98); } to { opacity: 1; transform: none; } }
+
+  .typing .bubble { display: inline-flex; gap: 5px; padding: 14px 16px; align-items: center; }
+  .typing i { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); animation: dot 1.1s infinite ease-in-out; }
+  .typing i:nth-child(2) { animation-delay: .15s; }
+  .typing i:nth-child(3) { animation-delay: .3s; }
+  @keyframes dot { 0%, 60%, 100% { opacity: .35; transform: none; } 30% { opacity: 1; transform: translateY(-3px); } }
+
+  /* rich cards inside bubbles */
+  .card-title { font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--faint); font-weight: 600; margin-bottom: 10px; }
+  dl.sum { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; margin: 0; font-size: 16px; }
+  dl.sum dt { color: var(--muted); }
+  dl.sum dd { margin: 0; font-weight: 600; text-align: right; }
+  dl.sum .total { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 4px; }
+  .fine { font-size: 14px; color: var(--muted); margin-top: 12px !important; }
+  .done-head { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 18px; }
+  .done-head .tick { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--ok-soft); color: var(--ok); }
+  .done-head .tick svg { width: 17px; height: 17px; }
+  .ref { font: 800 30px/1 var(--display); letter-spacing: .02em; font-variant-numeric: tabular-nums; margin: 14px 0 4px; color: var(--accent-text); }
+  .card-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    min-height: 42px; padding: 9px 16px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink);
+    font-weight: 600; font-size: 15px; text-decoration: none;
+  }
+  .btn.ghost { background: transparent; color: var(--accent-text); border-color: var(--line); }
+  .btn.ghost:hover { border-color: var(--accent); }
+  .btn svg { width: 18px; height: 18px; }
+  .punch { display: grid; grid-template-columns: repeat(10, 1fr); gap: 6px; margin: 14px 0 10px; }
+  .punch span { aspect-ratio: 1; border-radius: 50%; border: 2px solid var(--line); }
+  .punch span.on { background: var(--accent); border-color: var(--accent); }
+  .big-num { font: 800 40px/1 var(--display); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  table.mini { width: 100%; border-collapse: collapse; font-size: 15.5px; }
+  table.mini td { padding: 3px 0; }
+  table.mini td:last-child { text-align: right; }
+  table.mini tr.today td { font-weight: 700; }
+
+  /* ---------- dock: quick replies + composer ---------- */
+  .dock { border-top: 1px solid var(--line); background: var(--panel); padding: 10px 12px; padding-bottom: max(10px, env(safe-area-inset-bottom)); }
+  .tray { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; padding: 2px 2px 10px; }
+  .tray:empty { display: none; }
+  .tray .hint { width: 100%; text-align: right; font-size: 13px; color: var(--faint); margin-bottom: -2px; }
+  .chip {
+    min-height: 42px; padding: 8px 15px; border-radius: 999px; cursor: pointer;
+    border: 1.5px solid var(--accent); background: transparent; color: var(--accent-text);
+    font-weight: 600; font-size: 15.5px; line-height: 1.2; text-align: left;
+    display: inline-flex; align-items: center; gap: 8px;
+    transition: background .15s, color .15s;
+  }
+  .chip small { font-weight: 500; opacity: .8; font-size: 14px; }
+  .chip:hover { background: var(--accent-soft); }
+  .chip[aria-pressed="true"], .chip.primary { background: var(--accent); color: var(--accent-ink); }
+  .chip[aria-pressed="true"]::before { content: "✓"; font-weight: 700; }
+  .chip:disabled { opacity: .45; cursor: not-allowed; }
+  .chip.quiet { border-color: var(--line); color: var(--muted); }
+  .tray.appear .chip { animation: pop .22s cubic-bezier(.2, .8, .3, 1) both; }
+  .composer { display: flex; gap: 8px; align-items: center; }
+  .composer input {
+    flex: 1; min-width: 0; height: 46px; padding: 0 18px; border-radius: 999px;
+    border: 1px solid var(--line); background: var(--thread); font-size: 16px;
+  }
+  .composer input:focus { outline: none; border-color: var(--accent); }
+  .composer input::placeholder { color: var(--faint); }
+  .send {
+    width: 46px; height: 46px; border-radius: 50%; border: 0; cursor: pointer; flex: none;
+    background: var(--accent); color: var(--accent-ink); display: grid; place-items: center;
+  }
+  .send:disabled { opacity: .4; cursor: default; }
+  .send svg { width: 20px; height: 20px; }
+
+  /* ---------- manager inbox ---------- */
+  .admin { min-height: 100vh; max-width: 920px; margin: 0 auto; padding: 0 16px 48px; }
+  .admin-top { display: flex; align-items: center; gap: 12px; padding: 18px 0 14px; position: sticky; top: 0; background: var(--bg); z-index: 2; }
+  .admin-top h1 { font: 800 26px/1.1 var(--display); letter-spacing: -.02em; margin: 0; flex: 1; }
+  .badge { font-size: 13px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); }
+  .badge.live { background: var(--ok-soft); color: var(--ok); }
+  .gate { max-width: 360px; margin: 12vh auto 0; text-align: center; background: var(--panel); border: 1px solid var(--line); border-radius: 26px; padding: 30px 26px; box-shadow: var(--shadow); }
+  .gate h1 { font: 800 26px/1.15 var(--display); letter-spacing: -.02em; margin: 14px 0 6px; }
+  .gate .mono { margin: 0 auto; }
+  .gate input { width: 100%; height: 52px; margin: 18px 0 12px; text-align: center; font-size: 24px; letter-spacing: .5em; border-radius: 14px; border: 1px solid var(--line); background: var(--thread); }
+  .gate input:focus { outline: none; border-color: var(--accent); }
+  .gate .btn { width: 100%; }
+  .gate .err { color: var(--accent-text); min-height: 22px; font-size: 15px; margin-top: 10px; }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 8px; }
+  .seg { display: inline-flex; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 3px; }
+  .seg button { border: 0; background: transparent; padding: 7px 14px; border-radius: 999px; cursor: pointer; font-weight: 600; font-size: 15px; color: var(--muted); }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+  .toolbar input[type=search] { flex: 1; min-width: 160px; height: 42px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); font-size: 16px; }
+  .stats { color: var(--muted); font-size: 15px; margin: 6px 4px 4px; }
+  .day-h { display: flex; justify-content: space-between; align-items: baseline; margin: 22px 4px 8px; }
+  .day-h strong { font-size: 17px; }
+  .day-h span { font-size: 14px; color: var(--muted); }
+  .inbox { list-style: none; margin: 0; padding: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 20px; overflow: hidden; }
+  .item { display: grid; grid-template-columns: auto 1fr auto; gap: 4px 14px; padding: 14px 16px; align-items: center; }
+  .item + .item { border-top: 1px solid var(--line); }
+  .item .mono { width: 42px; height: 42px; font-size: 15px; background: var(--accent-soft); color: var(--accent-text); grid-row: span 2; }
+  .item .name { font-weight: 700; font-size: 16.5px; }
+  .item .name small { font-weight: 500; color: var(--faint); font-size: 14px; margin-left: 6px; }
+  .item .time { font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+  .item .meta { color: var(--muted); font-size: 15px; grid-column: 2; }
+  .item .chips { grid-column: 3; display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+  .item .acts { grid-column: 2 / 4; display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+  .item.dim .name, .item.dim .meta, .item.dim .time { opacity: .55; }
+  .item.cancel .name { text-decoration: line-through; }
+  .st { font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 999px; white-space: nowrap; background: var(--accent-soft); color: var(--accent-text); }
+  .st.Completed, .st.Paid { background: var(--ok-soft); color: var(--ok); }
+  .st.Cancelled { background: transparent; color: var(--faint); border: 1px solid var(--line); }
+  .st.late, .st.Deposit-Unpaid, .st.No-Show { background: var(--warn-soft); color: var(--warn); }
+  .mini-btn { border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 6px 14px; min-height: 36px; font-weight: 600; font-size: 14.5px; cursor: pointer; }
+  .mini-btn:hover { border-color: var(--accent); color: var(--accent-text); }
+  .empty { text-align: center; color: var(--muted); padding: 48px 16px; }
+  @media (max-width: 560px) {
+    .item { grid-template-columns: auto 1fr; }
+    .item .time { text-align: left; grid-column: 2; }
+    .item .chips { grid-column: 2; justify-content: flex-start; }
+    .item .acts { grid-column: 2; }
+    .item .mono { grid-row: span 3; }
+    .admin-top h1 { font-size: 22px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ================= CLIENT: chat ================= -->
+<div class="app" id="clientApp">
+  <aside class="side" aria-label="About the shop">
+    <section class="contact">
+      <div class="mono lg" aria-hidden="true">EC</div>
+      <h1 id="sideName">Elite Cuts</h1>
+      <p class="tag" id="sideTag"></p>
+      <span class="pill" id="sideOpen">Open</span>
+      <h2>Hours</h2>
+      <table class="hours" id="sideHours"></table>
+      <h2>Find us</h2>
+      <p style="margin:0" id="sideAddr"></p>
+      <div class="side-actions">
+        <a class="btn ghost" id="sideCall" href="#">Call</a>
+        <a class="btn ghost" id="sideMap" href="#" target="_blank" rel="noopener">Directions</a>
+      </div>
+      <h2>Barbers</h2>
+      <ul class="people" id="sideBarbers"></ul>
+    </section>
+    <p class="side-note">Book by text, right here. No app and no account. We remember you on this device so next time takes two taps.</p>
+  </aside>
+
+  <main class="chat" aria-label="Chat with the shop">
+    <header class="chat-head">
+      <div class="mono" aria-hidden="true">EC</div>
+      <div class="who">
+        <strong id="headName">Elite Cuts</strong>
+        <div class="status" id="headStatus">Replies instantly</div>
+      </div>
+      <button class="icon-btn" id="restartBtn" type="button" title="Start a new conversation">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+        <span>Start over</span>
+      </button>
+    </header>
+    <div class="thread" id="thread" role="log" aria-live="polite" aria-relevant="additions"></div>
+    <div class="dock">
+      <div class="tray" id="tray" role="group" aria-label="Quick replies"></div>
+      <form class="composer" id="composer" autocomplete="on">
+        <label for="msg" class="sr-only">Message</label>
+        <input id="msg" name="msg" type="text" placeholder="Text Elite Cuts" enterkeyhint="send" autocomplete="off">
+        <button class="send" id="sendBtn" type="submit" aria-label="Send" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5"/><path d="m5 12 7-7 7 7"/></svg>
+        </button>
+      </form>
+    </div>
+  </main>
+</div>
+
+<!-- ================= MANAGER: inbox (?portal=admin) ================= -->
+<div class="admin" id="adminApp" hidden>
+  <section class="gate" id="gate">
+    <div class="mono lg" aria-hidden="true">EC</div>
+    <h1>Manager inbox</h1>
+    <p class="muted" id="gateHint" style="margin:0">Enter your PIN.</p>
+    <form id="gateForm">
+      <label for="pin" class="sr-only">PIN</label>
+      <input id="pin" type="password" inputmode="numeric" autocomplete="current-password" maxlength="12">
+      <button class="btn" type="submit">Open inbox</button>
+      <div class="err" id="gateErr" role="alert"></div>
+    </form>
+  </section>
+  <section id="inbox" hidden>
+    <div class="admin-top">
+      <div class="mono" aria-hidden="true">EC</div>
+      <h1>Inbox</h1>
+      <span class="badge" id="modeBadge">Demo data</span>
+    </div>
+    <div class="toolbar">
+      <div class="seg" role="group" aria-label="Show">
+        <button type="button" data-f="upcoming" aria-pressed="true">Upcoming</button>
+        <button type="button" data-f="today" aria-pressed="false">Today</button>
+        <button type="button" data-f="all" aria-pressed="false">All</button>
+      </div>
+      <label for="q" class="sr-only">Search bookings</label>
+      <input type="search" id="q" placeholder="Search name, phone or ref">
+      <button class="btn ghost" type="button" id="csvBtn">Export CSV</button>
+    </div>
+    <p class="stats" id="stats"></p>
+    <div id="groups"></div>
+    <p style="margin-top:28px;display:flex;gap:16px;flex-wrap:wrap">
+      <a href="./" class="icon-btn" style="padding-left:0">Back to the chat</a>
+      <button type="button" class="icon-btn" id="resetDemo">Reset demo data</button>
+    </p>
+  </section>
+</div>
+
+<script>
+/* =====================================================================
+   Elite Cuts, "text to book" (alternative C)
+   ---------------------------------------------------------------------
+   API_URL empty  -> demo mode: everything lives in this browser's localStorage.
+   API_URL set    -> talks to the D1 worker in ./worker (same API as the
+                     original KV worker, plus POST /api/bookings/late).
+   ===================================================================== */
+const API_URL = '';
+
+const SHOP = {
+  name: 'Elite Cuts',
+  tagline: 'Master barbering & grooming lounge',
+  phone: '+15552345678',
+  phonePretty: '(555) 234-5678',
+  address: '742 Evergreen Ave, Suite 100',
+  addressNote: 'Free validated garage parking',
+  depositAmount: 15,
+  requireDeposit: false,
+  paymentLinkUrl: '',
+  // day of week (0 = Sunday) -> [open, close] in minutes after midnight
+  hours: { 0: [600, 960], 1: [540, 1200], 2: [540, 1200], 3: [540, 1200], 4: [540, 1200], 5: [540, 1200], 6: [480, 1080] },
+  services: [
+    { id: 'srv-1', name: 'The Executive Cut & Style', short: 'Executive Cut', price: 45, duration: 45 },
+    { id: 'srv-2', name: 'Cut + Beard Sculpt & Hot Towel', short: 'Cut + Beard Sculpt', price: 65, duration: 60 },
+    { id: 'srv-3', name: 'Traditional Straight Razor Shave', short: 'Razor Shave', price: 40, duration: 30 },
+    { id: 'srv-4', name: 'Beard Trim & Razor Line-Up', short: 'Beard Trim', price: 30, duration: 25 }
+  ],
+  barbers: [
+    { id: 'brb-1', name: 'Marcus Vance', first: 'Marcus', role: 'Master barber, 12 yrs' },
+    { id: 'brb-2', name: 'Mateo Cruz', first: 'Mateo', role: 'Senior barber, 8 yrs' }
+  ],
+  timeSlots: ['09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '01:30 PM', '02:30 PM', '03:30 PM', '04:30 PM', '05:30 PM', '06:30 PM']
+};
+const DEMO_PIN = '1234';
+const K = { bookings: 'EC_C_BOOKINGS_V1', loyalty: 'EC_C_LOYALTY_V1', me: 'EC_C_ME_V1', seeded: 'EC_C_SEEDED_V1', token: 'EC_C_MANAGER_TOKEN' };
+
+/* ---------------- tiny utilities ---------------- */
+const $ = (s, r = document) => r.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const digits = (p) => String(p || '').replace(/\D/g, '');
+const pad = (n) => String(n).padStart(2, '0');
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const reducedMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+const money = (n) => '$' + (Math.round(n * 100) / 100).toLocaleString('en-US');
+const initials = (name) => String(name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* private mode: keep going */ } },
+  del(k) { try { localStorage.removeItem(k); } catch { /* ignore */ } }
+};
+const session = {
+  get(k) { try { return sessionStorage.getItem(k); } catch { return null; } },
+  set(k, v) { try { sessionStorage.setItem(k, v); } catch { /* ignore */ } },
+  del(k) { try { sessionStorage.removeItem(k); } catch { /* ignore */ } }
+};
+function prettyPhone(p) {
+  const d = digits(p);
+  if (d.length === 10) return `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+  if (d.length === 11 && d[0] === '1') return `+1 (${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7)}`;
+  return String(p).trim();
+}
+
+/* dates are local calendar days as "YYYY-MM-DD"; slot labels stay "11:00 AM" for API compatibility */
+const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const fromYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const todayYmd = () => ymd(new Date());
+function slotMinutes(label) {
+  const m = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(String(label).trim());
+  if (!m) return 0;
+  let h = Number(m[1]) % 12; if (m[3].toUpperCase() === 'PM') h += 12;
+  return h * 60 + Number(m[2]);
+}
+const niceTime = (label) => String(label).replace(/^0/, '');
+const clock = (mins) => { const h = Math.floor(mins / 60), m = mins % 60, h12 = h % 12 || 12; return `${h12}${m ? ':' + pad(m) : ''} ${h < 12 ? 'AM' : 'PM'}`; };
+function dayName(s, { long = false } = {}) {
+  if (s === todayYmd()) return 'Today';
+  if (s === ymd(addDays(new Date(), 1))) return 'Tomorrow';
+  return fromYmd(s).toLocaleDateString('en-US', long ? { weekday: 'long', month: 'short', day: 'numeric' } : { weekday: 'short', month: 'short', day: 'numeric' });
+}
+const fullDay = (s) => fromYmd(s).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+function openState(now = new Date()) {
+  const mins = now.getHours() * 60 + now.getMinutes();
+  const [o, c] = SHOP.hours[now.getDay()] || [0, 0];
+  if (mins >= o && mins < c) return { open: true, text: `Open now, until ${clock(c)}` };
+  for (let i = mins < o ? 0 : 1; i < 8; i++) {
+    const d = addDays(now, i), h = SHOP.hours[d.getDay()];
+    if (h) return { open: false, text: `Closed, opens ${i === 0 ? '' : i === 1 ? 'tomorrow ' : d.toLocaleDateString('en-US', { weekday: 'long' }) + ' '}at ${clock(h[0])}` };
+  }
+  return { open: false, text: 'Closed' };
+}
+
+/* ======================================================================
+   DATA LAYER: same interface for the demo (localStorage) and the API
+   ====================================================================== */
+class SlotTakenError extends Error { constructor() { super('That time is already booked'); this.status = 409; } }
+
+const LocalDB = {
+  mode: 'demo',
+  _all() { return store.get(K.bookings, []); },
+  _save(rows) { store.set(K.bookings, rows); },
+  _award(b, points) {
+    const db = store.get(K.loyalty, {}), key = digits(b.clientPhone);
+    const rec = db[key] || { points: 0, stamps: 0 };
+    db[key] = { name: b.clientName, phone: b.clientPhone, points: (rec.points || 0) + points, stamps: ((rec.stamps || 0) + 1) % 11, lastVisit: b.date };
+    store.set(K.loyalty, db);
+  },
+  async bookedTimes(date, barberId) {
+    return this._all().filter((b) => b.date === date && b.barberId === barberId && b.status !== 'Cancelled').map((b) => b.time);
+  },
+  async createBooking(p) {
+    const rows = this._all();
+    if (rows.some((b) => b.barberId === p.barberId && b.date === p.date && b.time === p.time && b.status !== 'Cancelled')) throw new SlotTakenError();
+    const isDeposit = p.paymentMode === 'deposit';
+    const booking = {
+      id: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`,
+      refCode: 'EC-' + String(Math.floor(1000 + Math.random() * 9000)),
+      ...p, depositAmount: isDeposit ? p.depositAmount : 0,
+      status: isDeposit ? 'Deposit Unpaid' : 'Confirmed', paid: false, createdAt: new Date().toISOString()
+    };
+    rows.unshift(booking); this._save(rows);
+    if (!isDeposit) this._award(booking, 100);
+    return booking;
+  },
+  async loyalty(phone) {
+    const key = digits(phone), rec = store.get(K.loyalty, {})[key] || { points: 0, stamps: 0 };
+    const history = this._all().filter((b) => digits(b.clientPhone) === key)
+      .sort((a, b) => (b.date + slotMinutes(b.time)).localeCompare(a.date + slotMinutes(a.time))).slice(0, 10);
+    return { points: rec.points || 0, stamps: rec.stamps || 0, history };
+  },
+  async markLate(refCode, phone, minutes) {
+    const rows = this._all(), b = rows.find((x) => x.refCode === refCode && digits(x.clientPhone) === digits(phone));
+    if (!b) throw new Error('Booking not found');
+    b.lateMinutes = minutes; b.updatedAt = new Date().toISOString(); this._save(rows);
+    return b;
+  },
+  async login(pin) { if (pin !== DEMO_PIN) throw new Error('Wrong PIN'); return true; },
+  async listBookings() { return this._all(); },
+  async setStatus(id, status) {
+    const rows = this._all(), b = rows.find((x) => x.id === id);
+    if (!b) throw new Error('Booking not found');
+    if (status === 'Paid' && b.paymentMode === 'deposit' && !b.paid) { b.paid = true; this._award(b, 150); }
+    b.status = status; b.updatedAt = new Date().toISOString(); this._save(rows);
+    return b;
+  }
+};
+
+const ApiDB = {
+  mode: 'live',
+  async call(path, { method = 'GET', body, manager = false } = {}) {
+    const headers = { 'Content-Type': 'application/json' };
+    if (manager && session.get(K.token)) headers['X-Manager-Token'] = session.get(K.token);
+    const res = await fetch(API_URL.replace(/\/+$/, '') + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+    const data = (res.headers.get('content-type') || '').includes('json') ? await res.json().catch(() => ({})) : await res.text();
+    if (res.status === 409) throw new SlotTakenError();
+    if (res.status === 401 && manager) session.del(K.token);
+    if (!res.ok) { const e = new Error((data && data.error) || `Server error ${res.status}`); e.status = res.status; throw e; }
+    return data;
+  },
+  async bookedTimes(date, barberId) { return (await this.call(`/api/slots?date=${encodeURIComponent(date)}&barberId=${encodeURIComponent(barberId)}`)).booked || []; },
+  async createBooking(p) { return (await this.call('/api/bookings', { method: 'POST', body: p })).booking; },
+  async loyalty(phone) { return this.call(`/api/loyalty?phone=${encodeURIComponent(digits(phone))}`); },
+  async markLate(refCode, phone, minutes) { return (await this.call('/api/bookings/late', { method: 'POST', body: { refCode, phone, minutes } })).booking; },
+  async login(pin) { const d = await this.call('/api/manager/login', { method: 'POST', body: { pin } }); session.set(K.token, d.token); return true; },
+  async listBookings() { const from = ymd(addDays(new Date(), -60)); return (await this.call(`/api/manager/bookings?from=${from}`, { manager: true })).bookings || []; },
+  async setStatus(id, status) { return (await this.call(`/api/manager/bookings/${encodeURIComponent(id)}`, { method: 'PATCH', body: { status }, manager: true })).booking; }
+};
+
+const DB = API_URL ? ApiDB : LocalDB;
+
+/* Demo mode only: a few sample bookings so the manager inbox isn't empty. */
+function seedDemo(force = false) {
+  if (API_URL || (!force && store.get(K.seeded, false))) return;
+  const t = new Date(), mk = (dayOff, time, barber, name, phone, svcIds, extra = {}) => {
+    const svcs = svcIds.map((id) => SHOP.services.find((s) => s.id === id));
+    const b = SHOP.barbers.find((x) => x.id === barber);
+    return {
+      id: `seed-${dayOff}-${slotMinutes(time)}-${barber}`, refCode: 'EC-' + (2000 + dayOff * 97 + slotMinutes(time) % 89),
+      services: svcs.map((s) => s.name), totalCost: svcs.reduce((a, s) => a + s.price, 0), totalMin: svcs.reduce((a, s) => a + s.duration, 0),
+      barberId: barber, barberName: b.name, date: ymd(addDays(t, dayOff)), time,
+      clientName: name, clientPhone: phone, notes: '', paymentMode: 'chair', depositAmount: 0,
+      status: 'Confirmed', paid: false, createdAt: new Date(Date.now() - 86400000).toISOString(), ...extra
+    };
+  };
+  const rows = [
+    mk(0, '10:00 AM', 'brb-1', 'Andre Wallace', '(555) 301-4410', ['srv-2'], { status: 'Completed' }),
+    mk(0, '12:00 PM', 'brb-2', 'Chris Park', '(555) 220-1934', ['srv-1']),
+    mk(0, '02:30 PM', 'brb-1', 'Devon Hughes', '(555) 874-0021', ['srv-1', 'srv-4'], { lateMinutes: 10 }),
+    mk(0, '04:30 PM', 'brb-2', 'Luis Ortega', '(555) 662-7730', ['srv-3']),
+    mk(1, '09:00 AM', 'brb-1', 'Sam Whitaker', '(555) 412-9087', ['srv-1']),
+    mk(1, '11:00 AM', 'brb-2', 'Kofi Mensah', '(555) 733-5120', ['srv-2']),
+    mk(1, '05:30 PM', 'brb-1', 'Ray Delgado', '(555) 190-6634', ['srv-4'], { status: 'Cancelled' }),
+    mk(2, '01:30 PM', 'brb-1', 'Theo Grant', '(555) 548-2271', ['srv-1'])
+  ];
+  store.set(K.bookings, rows);
+  const loyalty = {};
+  rows.forEach((b) => { if (b.status !== 'Cancelled') loyalty[digits(b.clientPhone)] = { name: b.clientName, phone: b.clientPhone, points: 100 * (1 + (b.clientName.length % 4)), stamps: 1 + (b.clientName.length % 4), lastVisit: b.date }; });
+  store.set(K.loyalty, loyalty);
+  store.set(K.seeded, true);
+}
+
+/* Availability: which slot labels are free for a barber (or "any") on a day, given the visit length. */
+async function freeSlots(date, barberId, totalMin) {
+  const day = fromYmd(date), hrs = SHOP.hours[day.getDay()];
+  if (!hrs) return [];
+  const now = new Date(), isToday = date === todayYmd(), nowMin = now.getHours() * 60 + now.getMinutes();
+  const fits = SHOP.timeSlots.filter((s) => {
+    const m = slotMinutes(s);
+    return m >= hrs[0] && m + totalMin <= hrs[1] && (!isToday || m > nowMin + 30);
+  });
+  if (!fits.length) return [];
+  const ids = barberId === 'any' ? SHOP.barbers.map((b) => b.id) : [barberId];
+  const taken = Object.fromEntries(await Promise.all(ids.map(async (id) => [id, new Set(await DB.bookedTimes(date, id))])));
+  return fits.map((time) => ({ time, barbers: ids.filter((id) => !taken[id].has(time)) })).filter((s) => s.barbers.length);
+}
+
+/* ======================================================================
+   CHAT ENGINE: a scripted conversation, no AI. say() / offer() / ask()
+   ====================================================================== */
+const threadEl = $('#thread'), trayEl = $('#tray'), msgEl = $('#msg'), sendBtn = $('#sendBtn');
+class Abort extends Error {}
+let restartRequested = false;
+let pending = null; // { type: 'offer'|'ask', resolve, reject, ... }
+
+const checkpoint = () => { if (restartRequested) throw new Abort(); };
+function scrollDown() { threadEl.scrollTo({ top: threadEl.scrollHeight, behavior: reducedMotion() ? 'auto' : 'smooth' }); }
+function addRow(who, html, { rich = false } = {}) {
+  $('.receipt', threadEl)?.remove();
+  const last = threadEl.lastElementChild;
+  const row = document.createElement('div');
+  row.className = `row ${who} tail appear`;
+  if (last && last.classList.contains('row') && last.classList.contains(who) && !last.classList.contains('typing')) {
+    last.classList.remove('tail'); row.classList.add('cont');
+  }
+  row.innerHTML = `<div class="bubble${rich ? ' rich' : ''}">${html}</div>`;
+  threadEl.appendChild(row);
+  if (who === 'me') { const r = document.createElement('div'); r.className = 'receipt'; r.textContent = 'Delivered'; threadEl.appendChild(r); }
+  scrollDown();
+  return row;
+}
+function divider(text) {
+  const d = document.createElement('div'); d.className = 'divider'; d.textContent = text;
+  threadEl.appendChild(d); scrollDown();
+}
+async function say(html, opts = {}) {
+  checkpoint();
+  const typing = document.createElement('div');
+  typing.className = 'row shop typing appear';
+  typing.setAttribute('aria-label', 'Elite Cuts is typing');
+  typing.innerHTML = '<div class="bubble"><i></i><i></i><i></i></div>';
+  const last = threadEl.lastElementChild;
+  if (last && last.classList.contains('shop')) typing.classList.add('cont');
+  threadEl.appendChild(typing); scrollDown();
+  try {
+    const textLen = html.replace(/<[^>]+>/g, '').length;
+    await wait(reducedMotion() ? 120 : Math.min(320 + textLen * 7, opts.rich ? 700 : 1000));
+  } finally { typing.remove(); }
+  checkpoint();
+  return addRow('shop', html, opts);
+}
+const me = (text) => addRow('me', esc(text));
+
+function clearTray() { trayEl.innerHTML = ''; trayEl.classList.remove('appear'); }
+function setComposer({ placeholder = 'Text Elite Cuts', inputmode = 'text', autocomplete = 'off', value = '' } = {}) {
+  msgEl.placeholder = placeholder; msgEl.inputMode = inputmode; msgEl.autocomplete = autocomplete;
+  msgEl.type = inputmode === 'tel' ? 'tel' : 'text';
+  msgEl.value = value; sendBtn.disabled = !value.trim();
+}
+
+/** Show quick-reply chips; resolves with the chosen id (or ids for multi). */
+function offer(options, { multi = false, selected = [], doneLabel = 'Done', hint = '' } = {}) {
+  checkpoint();
+  clearTray();
+  return new Promise((resolve, reject) => {
+    const picked = new Set(selected);
+    const finish = (value, label) => { pending = null; clearTray(); me(label); resolve(value); };
+    pending = {
+      type: 'offer', reject,
+      match(text) { // typed text that matches a chip counts as tapping it
+        const t = text.toLowerCase().trim();
+        const hit = options.find((o) => !o.disabled && (o.label.toLowerCase() === t || (o.keywords || []).some((k) => t.includes(k)) || o.label.toLowerCase().startsWith(t)));
+        if (!hit) return false;
+        if (multi) { picked.has(hit.id) ? picked.delete(hit.id) : picked.add(hit.id); render(); return 'toggled'; }
+        finish(hit.id, hit.label); return true;
+      }
+    };
+    function render() {
+      clearTray();
+      trayEl.classList.add('appear');
+      if (hint) { const h = document.createElement('div'); h.className = 'hint'; h.textContent = hint; trayEl.appendChild(h); }
+      options.forEach((o) => {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'chip' + (o.primary ? ' primary' : '') + (o.quiet ? ' quiet' : '');
+        b.innerHTML = esc(o.label) + (o.sub ? ` <small>${esc(o.sub)}</small>` : '');
+        b.disabled = !!o.disabled;
+        if (multi) b.setAttribute('aria-pressed', picked.has(o.id) ? 'true' : 'false');
+        b.addEventListener('click', () => {
+          if (!multi) return finish(o.id, o.label);
+          picked.has(o.id) ? picked.delete(o.id) : picked.add(o.id);
+          render();
+          trayEl.classList.remove('appear');
+        });
+        trayEl.appendChild(b);
+      });
+      if (multi) {
+        const d = document.createElement('button');
+        d.type = 'button'; d.className = 'chip primary'; d.dataset.done = '1';
+        d.textContent = picked.size ? `${doneLabel} (${picked.size})` : doneLabel;
+        d.disabled = !picked.size;
+        d.addEventListener('click', () => {
+          const ids = options.filter((o) => picked.has(o.id)).map((o) => o.id);
+          finish(ids, options.filter((o) => picked.has(o.id)).map((o) => o.label).join(' + '));
+        });
+        trayEl.appendChild(d);
+      }
+      scrollDown();
+    }
+    render();
+  });
+}
+
+/** Wait for the client to type something in the composer. validate() returns an error message or ''. */
+function ask({ placeholder, inputmode = 'text', autocomplete = 'off', value = '', validate = () => '', display = (v) => v }) {
+  checkpoint();
+  clearTray();
+  setComposer({ placeholder, inputmode, autocomplete, value });
+  if (matchMedia('(min-width: 900px)').matches || value) msgEl.focus({ preventScroll: true });
+  return new Promise((resolve, reject) => {
+    pending = {
+      type: 'ask', reject,
+      async submit(text) {
+        me(display(text));
+        const problem = validate(text);
+        if (problem) { try { await say(esc(problem)); } catch (e) { /* restarted */ } return; }
+        pending = null; setComposer(); resolve(text.trim());
+      }
+    };
+  });
+}
+
+$('#composer').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const text = msgEl.value.trim();
+  if (!text) return;
+  if (/^(start over|restart|reset)$/i.test(text)) { msgEl.value = ''; sendBtn.disabled = true; me(text); return restart(); }
+  if (pending && pending.type === 'ask') { msgEl.value = ''; sendBtn.disabled = true; return pending.submit(text); }
+  msgEl.value = ''; sendBtn.disabled = true;
+  if (pending && pending.type === 'offer') {
+    const r = pending.match(text);
+    if (r) return;
+    me(text);
+    try { await say("I'm the shop's booking line, so I work best with the options below. Or call us at " + `<a href="tel:${SHOP.phone}">${SHOP.phonePretty}</a>.`); } catch { /* restarted */ }
+    return;
+  }
+  me(text);
+});
+msgEl.addEventListener('input', () => { sendBtn.disabled = !msgEl.value.trim(); });
+$('#restartBtn').addEventListener('click', () => restart());
+
+function restart() {
+  restartRequested = true;
+  if (pending) { const p = pending; pending = null; p.reject(new Abort()); }
+  clearTray(); setComposer();
+}
+
+/* ======================================================================
+   CONVERSATIONS
+   ====================================================================== */
+const profile = {
+  get() { return store.get(K.me, null); },
+  save(patch) { const cur = store.get(K.me, {}) || {}; store.set(K.me, { ...cur, ...patch }); }
+};
+const svc = (id) => SHOP.services.find((s) => s.id === id);
+const barberById = (id) => SHOP.barbers.find((b) => b.id === id);
+const firstName = (n) => String(n || '').trim().split(/\s+/)[0];
+
+const MAIN_MENU = [
+  { id: 'book', label: 'Book a cut', keywords: ['book', 'appoint', 'cut', 'haircut', 'schedule', 'shave', 'beard'] },
+  { id: 'points', label: 'My points', keywords: ['point', 'reward', 'loyal', 'stamp'] },
+  { id: 'hours', label: 'Hours & location', keywords: ['hour', 'open', 'close', 'where', 'address', 'location', 'park', 'direction'] },
+  { id: 'late', label: 'Running late', keywords: ['late', 'delay', 'traffic', 'minutes'] }
+];
+
+async function conversation(first) {
+  const p = profile.get();
+  const hello = new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 17 ? 'Good afternoon' : 'Good evening';
+  if (first) divider(`Today ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`);
+  if (p && p.name) await say(`${hello}, ${esc(firstName(p.name))}. Good to hear from you again.`);
+  else await say(`${hello}, this is ${esc(SHOP.name)}. You can book a chair right here by text, it takes about a minute.`);
+  await say('What can we do for you?');
+  for (;;) {
+    const choice = await offer(MAIN_MENU);
+    if (choice === 'book') await bookingFlow();
+    else if (choice === 'points') await pointsFlow();
+    else if (choice === 'hours') await hoursFlow();
+    else if (choice === 'late') await lateFlow();
+    await say('Anything else?');
+  }
+}
+
+/* ---------- booking ---------- */
+async function bookingFlow() {
+  const p = profile.get() || {};
+  const b = { serviceIds: null, barberId: null, date: null, time: null, assignedBarberId: null, name: p.name || '', phone: p.phone || '' };
+
+  if (p.lastServiceIds && p.lastServiceIds.length && p.lastBarberId) {
+    const names = p.lastServiceIds.map((id) => svc(id)?.short).filter(Boolean).join(' + ');
+    const who = p.lastBarberId === 'any' ? 'whoever is free' : barberById(p.lastBarberId)?.first;
+    await say(`Same as last time? <strong>${esc(names)}</strong> with ${esc(who)}.`);
+    const same = await offer([{ id: 'yes', label: 'Yes, same again', primary: true }, { id: 'no', label: 'Something different' }]);
+    if (same === 'yes') { b.serviceIds = p.lastServiceIds.filter(svc); b.barberId = p.lastBarberId; }
+  }
+  if (!b.serviceIds || !b.serviceIds.length) await pickServices(b);
+  if (!b.barberId) await pickBarber(b);
+  await pickDayAndTime(b);
+  await pickDetails(b);
+
+  for (;;) {
+    const total = totals(b);
+    const assigned = barberById(b.assignedBarberId);
+    await say(`
+      <div class="card-title">Your booking</div>
+      <dl class="sum">
+        <dt>Service</dt><dd>${b.serviceIds.map((id) => esc(svc(id).short)).join('<br>')}</dd>
+        <dt>Barber</dt><dd>${esc(assigned.first)}${b.barberId === 'any' ? ' <span class="muted" style="font-weight:500">(first free)</span>' : ''}</dd>
+        <dt>When</dt><dd>${esc(dayName(b.date))}, ${esc(niceTime(b.time))}</dd>
+        <dt>Name</dt><dd>${esc(b.name)}</dd>
+        <dt>Mobile</dt><dd>${esc(prettyPhone(b.phone))}</dd>
+        <dt class="total">Total</dt><dd class="total">${money(total.cost)} <span class="muted" style="font-weight:500">· ${total.min} min</span></dd>
+      </dl>
+      <p class="fine">${SHOP.requireDeposit ? `A ${money(SHOP.depositAmount)} deposit holds the chair.` : 'Pay at the chair. Need to cancel? Just text us.'}</p>`, { rich: true });
+    const c = await offer([{ id: 'confirm', label: 'Confirm booking', primary: true }, { id: 'change', label: 'Change something' }]);
+    if (c === 'confirm') {
+      const done = await submitBooking(b);
+      if (done) return;
+      continue; // slot was taken: pickDayAndTime already ran again
+    }
+    await say('Sure. What should we change?');
+    const what = await offer([
+      { id: 'svc', label: 'Service' }, { id: 'barber', label: 'Barber' }, { id: 'when', label: 'Day & time' },
+      { id: 'me', label: 'My details' }, { id: 'keep', label: 'Never mind', quiet: true }
+    ]);
+    if (what === 'svc') { await pickServices(b); await ensureStillFree(b); }
+    else if (what === 'barber') { await pickBarber(b); await ensureStillFree(b); }
+    else if (what === 'when') await pickDayAndTime(b);
+    else if (what === 'me') { b.name = ''; b.phone = ''; await pickDetails(b, true); }
+  }
+}
+
+const totals = (b) => b.serviceIds.reduce((a, id) => ({ cost: a.cost + svc(id).price, min: a.min + svc(id).duration }), { cost: 0, min: 0 });
+
+async function pickServices(b) {
+  await say('What are we doing today? Pick one or more.');
+  b.serviceIds = await offer(SHOP.services.map((s) => ({ id: s.id, label: s.short, sub: `${money(s.price)} · ${s.duration}m`, keywords: [s.short.toLowerCase().split(' ')[0]] })),
+    { multi: true, selected: b.serviceIds || [], doneLabel: 'Done', hint: 'Tap to select, then Done' });
+}
+
+async function pickBarber(b) {
+  await say('Any preference on barber?');
+  b.barberId = await offer([
+    { id: 'any', label: 'Anyone', sub: 'first available', primary: true, keywords: ['any', 'whoever', 'first'] },
+    ...SHOP.barbers.map((x) => ({ id: x.id, label: x.first, sub: x.role.split(',')[0], keywords: [x.first.toLowerCase()] }))
+  ]);
+}
+
+async function pickDayAndTime(b) {
+  const { min } = totals(b);
+  let start = 0;
+  for (;;) {
+    // collect days in the window that still have room
+    const candidates = Array.from({ length: 14 }, (_, i) => ymd(addDays(new Date(), start + i)));
+    const counts = await Promise.all(candidates.map(async (d) => (await freeSlots(d, b.barberId, min)).length));
+    const days = candidates.filter((d, i) => counts[i]).slice(0, 6).map((d) => ({
+      id: d, label: dayName(d), sub: ['Today', 'Tomorrow'].includes(dayName(d)) ? fullDay(d).split(', ')[1] : ''
+    }));
+    if (!days.length) await say('Nothing open in that stretch, sorry.');
+    const who = b.barberId === 'any' ? 'anyone' : barberById(b.barberId).first;
+    await say(start === 0 ? `Which day works? These have openings with ${esc(who)}.` : 'Here are the next ones.');
+    const nextStart = start + 14;
+    const day = await offer([...days, { id: 'more', label: 'Later dates', quiet: true }]);
+    if (day === 'more') { start = nextStart; continue; }
+
+    const free = await freeSlots(day, b.barberId, min);
+    if (!free.length) { await say('Ah, that day just filled up. Pick another?'); continue; }
+    await say(`${esc(dayName(day, { long: true }))}. Here's what's open:`);
+    const time = await offer([...free.map((s) => ({ id: s.time, label: niceTime(s.time) })), { id: 'back', label: 'Other day', quiet: true }]);
+    if (time === 'back') continue;
+    const slot = free.find((s) => s.time === time);
+    b.date = day; b.time = time;
+    b.assignedBarberId = b.barberId === 'any' ? await leastBusy(day, slot.barbers) : b.barberId;
+    return;
+  }
+}
+
+/** For "Anyone": hand the slot to whichever free barber has fewer bookings that day. */
+async function leastBusy(date, ids) {
+  const loads = await Promise.all(ids.map(async (id) => [(await DB.bookedTimes(date, id)).length, id]));
+  loads.sort((a, b) => a[0] - b[0]);
+  return loads[0][1];
+}
+
+async function ensureStillFree(b) {
+  if (!b.date) return;
+  const free = await freeSlots(b.date, b.barberId, totals(b).min);
+  const slot = free.find((s) => s.time === b.time);
+  if (slot) { b.assignedBarberId = b.barberId === 'any' ? (slot.barbers.includes(b.assignedBarberId) ? b.assignedBarberId : slot.barbers[0]) : b.barberId; return; }
+  await say(`${esc(niceTime(b.time))} on ${esc(dayName(b.date))} doesn't work with that change. Let's pick a new time.`);
+  await pickDayAndTime(b);
+}
+
+async function pickDetails(b, force = false) {
+  const p = profile.get() || {};
+  if (!force && b.name && b.phone) {
+    await say(`I'll put it under <strong>${esc(b.name)}</strong>, ${esc(prettyPhone(b.phone))}. Still right?`);
+    const ok = await offer([{ id: 'yes', label: 'Yes', primary: true }, { id: 'no', label: 'Update my details' }]);
+    if (ok === 'yes') return;
+  }
+  await say('What name should I put it under?');
+  b.name = await ask({
+    placeholder: 'Your name', autocomplete: 'name', value: force ? '' : (p.name || ''),
+    validate: (v) => (v.trim().length < 2 ? 'Just need a first name at least.' : v.trim().length > 60 ? "That's a long one. Could you shorten it?" : '')
+  });
+  await say(`Thanks, ${esc(firstName(b.name))}. And a mobile number, in case we need to reach you?`);
+  b.phone = await ask({
+    placeholder: 'Mobile number', inputmode: 'tel', autocomplete: 'tel',
+    validate: (v) => { const d = digits(v); return d.length < 10 || d.length > 15 ? "That doesn't look like a full number. Try again with the area code?" : ''; },
+    display: prettyPhone
+  });
+}
+
+async function submitBooking(b) {
+  const sel = b.serviceIds.map(svc), total = totals(b), barber = barberById(b.assignedBarberId);
+  const deposit = SHOP.requireDeposit;
+  const payload = {
+    services: sel.map((s) => s.name), totalCost: total.cost, totalMin: total.min,
+    barberId: barber.id, barberName: barber.name, date: b.date, time: b.time,
+    clientName: b.name.trim(), clientPhone: prettyPhone(b.phone), notes: 'Booked by text',
+    paymentMode: deposit ? 'deposit' : 'chair', depositAmount: deposit ? SHOP.depositAmount : 0
+  };
+  let booking;
+  try {
+    booking = await DB.createBooking(payload);
+  } catch (err) {
+    if (err instanceof SlotTakenError) {
+      await say(`So sorry, someone grabbed ${esc(niceTime(b.time))} a moment ago. Let's find you another time.`);
+      await pickDayAndTime(b);
+      return false;
+    }
+    console.warn('Booking failed', err);
+    await say(`I couldn't reach the booking system just now. Please try again in a minute, or call <a href="tel:${SHOP.phone}">${SHOP.phonePretty}</a>.`);
+    const again = await offer([{ id: 'retry', label: 'Try again', primary: true }, { id: 'stop', label: 'Not now', quiet: true }]);
+    if (again === 'retry') return submitBooking(b);
+    return true;
+  }
+  profile.save({ name: payload.clientName, phone: payload.clientPhone, lastServiceIds: b.serviceIds, lastBarberId: b.barberId === 'any' ? 'any' : b.barberId });
+  confirmed.set(booking.refCode, booking);
+  if (deposit && SHOP.paymentLinkUrl) {
+    const sep = SHOP.paymentLinkUrl.includes('?') ? '&' : '?';
+    window.open(`${SHOP.paymentLinkUrl}${sep}client_reference_id=${encodeURIComponent(booking.refCode)}`, '_blank', 'noopener');
+  }
+  await say(`
+    <div class="done-head"><span class="tick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg></span>You're booked</div>
+    <div class="ref" aria-label="Reference code">${esc(booking.refCode)}</div>
+    <p>${esc(sel.map((s) => s.short).join(' + '))} with ${esc(barber.first)}<br>${esc(dayName(booking.date, { long: true }))} at ${esc(niceTime(booking.time))}</p>
+    <p class="fine">${deposit ? 'Points are added once the deposit is paid.' : '+100 points added to your card.'} Show this code at the front desk.</p>
+    <div class="card-actions">
+      <button type="button" class="btn" data-ics="${esc(booking.refCode)}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Add to calendar</button>
+      <a class="btn ghost" href="${mapsUrl()}" target="_blank" rel="noopener">Directions</a>
+    </div>`, { rich: true });
+  await say(`See you ${esc(dayName(booking.date) === 'Today' ? 'later today' : dayName(booking.date) === 'Tomorrow' ? 'tomorrow' : 'on ' + fromYmd(booking.date).toLocaleDateString('en-US', { weekday: 'long' }))}, ${esc(firstName(b.name))}. If plans change, just text "Running late" or call us.`);
+  return true;
+}
+
+/* ---------- calendar file ---------- */
+const confirmed = new Map();
+const mapsUrl = () => 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(`${SHOP.address}`);
+function icsText(b) {
+  const icsEsc = (s) => String(s).replace(/\\/g, '\\\\').replace(/[,;]/g, (c) => '\\' + c).replace(/\n/g, '\\n');
+  const start = fromYmd(b.date); start.setMinutes(slotMinutes(b.time));
+  const end = new Date(start.getTime() + (Number(b.totalMin) || 45) * 60000);
+  const local = (d) => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+  const stamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  return [
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Elite Cuts//Text to Book//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+    'BEGIN:VEVENT',
+    `UID:${b.refCode}-${b.date}@elitecuts`, `DTSTAMP:${stamp}`, `DTSTART:${local(start)}`, `DTEND:${local(end)}`,
+    `SUMMARY:${icsEsc(`${SHOP.name}: ${b.services.join(' + ')}`)}`,
+    `DESCRIPTION:${icsEsc(`With ${b.barberName}. Ref ${b.refCode}. Total ${money(b.totalCost)}. Running late? Call ${SHOP.phonePretty}.`)}`,
+    `LOCATION:${icsEsc(SHOP.address)}`,
+    'BEGIN:VALARM', 'TRIGGER:-PT1H', 'ACTION:DISPLAY', `DESCRIPTION:${icsEsc(SHOP.name + ' in 1 hour')}`, 'END:VALARM',
+    'END:VEVENT', 'END:VCALENDAR'
+  ].join('\r\n') + '\r\n';
+}
+threadEl.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-ics]');
+  if (!btn) return;
+  const b = confirmed.get(btn.dataset.ics);
+  if (!b) return;
+  const url = URL.createObjectURL(new Blob([icsText(b)], { type: 'text/calendar;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = `${b.refCode}-elite-cuts.ics`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+});
+
+/* ---------- points ---------- */
+async function knownPhone(prompt) {
+  const p = profile.get();
+  if (p && p.phone) return p.phone;
+  await say(prompt);
+  const phone = await ask({
+    placeholder: 'Mobile number', inputmode: 'tel', autocomplete: 'tel', display: prettyPhone,
+    validate: (v) => (digits(v).length < 10 ? 'I need the full number, with area code.' : '')
+  });
+  profile.save({ phone: prettyPhone(phone) });
+  return phone;
+}
+
+async function pointsFlow() {
+  const phone = await knownPhone("Sure. What's the mobile number on your bookings?");
+  let rec;
+  try { rec = await DB.loyalty(phone); } catch (e) { await say("I couldn't look that up just now. Try again in a minute?"); return; }
+  if (!rec.points && !rec.stamps && !(rec.history || []).length) {
+    await say(`I don't see any visits for ${esc(prettyPhone(phone))} yet. Your first booking starts your card: 100 points a visit, and every 10th cut is on us.`);
+    return;
+  }
+  if (rec.history && rec.history[0] && !profile.get()?.name) profile.save({ name: rec.history[0].clientName || '' });
+  const stamps = rec.stamps || 0;
+  const dots = Array.from({ length: 10 }, (_, i) => `<span class="${i < stamps ? 'on' : ''}"></span>`).join('');
+  await say(`
+    <div class="card-title">Your card</div>
+    <div class="big-num">${(rec.points || 0).toLocaleString('en-US')}</div>
+    <div class="muted">points</div>
+    <div class="punch" role="img" aria-label="${stamps} of 10 cuts">${dots}</div>
+    <p>${stamps >= 10 ? 'Your next cut is free. Mention it at the chair.' : `${stamps} of 10 cuts. <strong>${10 - stamps} more</strong> until a free one.`}</p>`, { rich: true });
+}
+
+/* ---------- hours ---------- */
+async function hoursFlow() {
+  const names = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'], todayIdx = new Date().getDay();
+  const rows = [1, 2, 3, 4, 5, 6, 0].map((i) => {
+    const h = SHOP.hours[i];
+    return `<tr class="${i === todayIdx ? 'today' : ''}"><td>${names[i]}</td><td>${h ? `${clock(h[0])} – ${clock(h[1])}` : 'Closed'}</td></tr>`;
+  }).join('');
+  await say(`${esc(openState().text)}.`);
+  await say(`
+    <div class="card-title">Hours</div>
+    <table class="mini">${rows}</table>
+    <p class="fine" style="color:var(--text)"><strong>${esc(SHOP.address)}</strong><br><span class="muted">${esc(SHOP.addressNote)}</span></p>
+    <div class="card-actions">
+      <a class="btn" href="${mapsUrl()}" target="_blank" rel="noopener">Directions</a>
+      <a class="btn ghost" href="tel:${SHOP.phone}">Call ${SHOP.phonePretty}</a>
+    </div>`, { rich: true });
+}
+
+/* ---------- running late ---------- */
+async function lateFlow() {
+  const phone = await knownPhone("No stress. What's the mobile number on the booking?");
+  let rec;
+  try { rec = await DB.loyalty(phone); } catch (e) { rec = { history: [] }; }
+  const now = new Date(), nowMin = now.getHours() * 60 + now.getMinutes();
+  const upcoming = (rec.history || [])
+    .filter((h) => h.date === todayYmd() && !['Cancelled', 'Completed', 'No-Show'].includes(h.status) && slotMinutes(h.time) > nowMin - 60)
+    .sort((a, b) => slotMinutes(a.time) - slotMinutes(b.time))[0];
+  if (!upcoming) {
+    await say(`I don't see a booking today for ${esc(prettyPhone(phone))}. If it's under another number, give us a call at <a href="tel:${SHOP.phone}">${SHOP.phonePretty}</a>.`);
+    return;
+  }
+  const barberFirst = firstName(upcoming.barberName);
+  await say(`Your ${esc(niceTime(upcoming.time))} with ${esc(barberFirst)}? How late are you running?`);
+  const mins = await offer([{ id: 5, label: '5 min' }, { id: 10, label: '10 min' }, { id: 15, label: '15 min' }, { id: 25, label: '20+ min' }, { id: 0, label: 'Never mind', quiet: true }]);
+  if (!mins) { await say('Okay, see you soon.'); return; }
+  try { await DB.markLate(upcoming.refCode, phone, mins); } catch (e) { console.warn(e); }
+  if (mins >= 20) await say(`Thanks for the heads-up. I've let ${esc(barberFirst)} know. At 20+ minutes we may need to shorten the service or move you, and we'll text you if so.`);
+  else await say(`Got it, I've told ${esc(barberFirst)} you're about ${mins} minutes out. Drive safe.`);
+}
+
+/* ---------- side card (desktop) ---------- */
+function renderSide() {
+  $('#sideTag').textContent = SHOP.tagline;
+  const st = openState();
+  $('#sideOpen').textContent = st.text;
+  $('#sideOpen').classList.toggle('closed', !st.open);
+  $('#headStatus').textContent = `${st.open ? 'Open now' : 'Closed now'} · replies instantly`;
+  const names = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], todayIdx = new Date().getDay();
+  $('#sideHours').innerHTML = [1, 2, 3, 4, 5, 6, 0].map((i) => {
+    const h = SHOP.hours[i];
+    return `<tr class="${i === todayIdx ? 'today' : ''}"><td>${names[i]}</td><td>${h ? `${clock(h[0])} – ${clock(h[1])}` : 'Closed'}</td></tr>`;
+  }).join('');
+  $('#sideAddr').innerHTML = `${esc(SHOP.address)}<br><span class="muted">${esc(SHOP.addressNote)}</span>`;
+  $('#sideCall').href = `tel:${SHOP.phone}`; $('#sideCall').textContent = `Call ${SHOP.phonePretty}`;
+  $('#sideMap').href = mapsUrl();
+  $('#sideBarbers').innerHTML = SHOP.barbers.map((b) => `<li><span class="mono" aria-hidden="true">${esc(initials(b.name))}</span><div>${esc(b.name)}<small>${esc(b.role)}</small></div></li>`).join('');
+}
+
+async function runChat() {
+  let first = true;
+  for (;;) {
+    try { await conversation(first); }
+    catch (err) { if (!(err instanceof Abort)) { console.error(err); await wait(300); } }
+    first = false; restartRequested = false;
+    divider('New conversation');
+  }
+}
+
+/* ======================================================================
+   MANAGER INBOX  (?portal=admin)
+   ====================================================================== */
+const admin = { rows: [], filter: 'upcoming', q: '' };
+
+function initAdmin() {
+  document.title = 'Inbox · Elite Cuts';
+  $('#clientApp').hidden = true; $('#adminApp').hidden = false;
+  $('#gateHint').textContent = DB.mode === 'demo' ? `Demo mode: the PIN is ${DEMO_PIN}.` : 'Enter your manager PIN.';
+  $('#modeBadge').textContent = DB.mode === 'demo' ? 'Demo data' : 'Live';
+  $('#modeBadge').classList.toggle('live', DB.mode !== 'demo');
+  $('#resetDemo').hidden = DB.mode !== 'demo';
+  $('#pin').focus();
+  if (DB.mode === 'live' && session.get(K.token)) openInbox();
+  $('#gateForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    $('#gateErr').textContent = '';
+    try { await DB.login($('#pin').value.trim()); openInbox(); }
+    catch (err) { $('#gateErr').textContent = err.status ? 'That PIN didn\'t work.' : (DB.mode === 'demo' ? "That PIN didn't work." : "Couldn't reach the booking server."); $('#pin').select(); }
+  });
+  document.querySelectorAll('.seg button').forEach((b) => b.addEventListener('click', () => {
+    admin.filter = b.dataset.f;
+    document.querySelectorAll('.seg button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+    renderInbox();
+  }));
+  $('#q').addEventListener('input', (e) => { admin.q = e.target.value.trim().toLowerCase(); renderInbox(); });
+  $('#csvBtn').addEventListener('click', exportCsv);
+  $('#resetDemo').addEventListener('click', () => { if (confirm('Replace all demo bookings with fresh sample data?')) { seedDemo(true); loadInbox(); } });
+  $('#groups').addEventListener('click', async (e) => {
+    const btn = e.target.closest('[data-act]');
+    if (!btn) return;
+    btn.disabled = true;
+    try { await DB.setStatus(btn.dataset.id, btn.dataset.act); }
+    catch (err) { alert(err.status === 409 ? 'That slot has been re-booked by someone else.' : 'Could not update: ' + err.message); }
+    loadInbox();
+  });
+}
+
+async function openInbox() { $('#gate').hidden = true; $('#inbox').hidden = false; await loadInbox(); }
+async function loadInbox() {
+  try { admin.rows = await DB.listBookings(); }
+  catch (err) { if (err.status === 401) { $('#gate').hidden = false; $('#inbox').hidden = true; return; } admin.rows = []; }
+  renderInbox();
+}
+
+function visibleRows() {
+  const t = todayYmd();
+  return admin.rows.filter((b) => {
+    if (admin.filter === 'today' && b.date !== t) return false;
+    if (admin.filter === 'upcoming' && b.date < t) return false;
+    if (!admin.q) return true;
+    return [b.clientName, b.clientPhone, b.refCode, b.barberName].join(' ').toLowerCase().includes(admin.q) || digits(b.clientPhone).includes(digits(admin.q) || '#');
+  }).sort((a, b) => a.date.localeCompare(b.date) || slotMinutes(a.time) - slotMinutes(b.time));
+}
+
+function renderInbox() {
+  const rows = visibleRows(), t = todayYmd();
+  const todays = admin.rows.filter((b) => b.date === t && b.status !== 'Cancelled');
+  $('#stats').textContent = `Today: ${todays.length} booking${todays.length === 1 ? '' : 's'}, ${money(todays.reduce((a, b) => a + (Number(b.totalCost) || 0), 0))} booked, ${todays.filter((b) => b.status === 'Completed').length} done.`;
+  if (!rows.length) { $('#groups').innerHTML = `<div class="empty">Nothing here${admin.q ? ' for that search' : ''}.</div>`; return; }
+  const byDay = new Map();
+  rows.forEach((b) => { if (!byDay.has(b.date)) byDay.set(b.date, []); byDay.get(b.date).push(b); });
+  $('#groups').innerHTML = [...byDay].map(([day, list]) => {
+    const active = list.filter((b) => b.status !== 'Cancelled').length;
+    return `<div class="day-h"><strong>${esc(dayName(day) === fullDay(day) ? fullDay(day) : `${dayName(day)} · ${fullDay(day)}`)}</strong><span>${active} booked</span></div>
+      <ul class="inbox">${list.map(itemHtml).join('')}</ul>`;
+  }).join('');
+}
+
+function itemHtml(b) {
+  const closed = ['Completed', 'Cancelled', 'No-Show'].includes(b.status);
+  const shortSvcs = (b.services || []).map((n) => (SHOP.services.find((s) => s.name === n)?.short || n)).join(' + ');
+  const acts = closed
+    ? (b.status === 'Cancelled' ? '' : '')
+    : `${b.paymentMode === 'deposit' && !b.paid ? `<button class="mini-btn" data-act="Paid" data-id="${esc(b.id)}">Mark paid</button>` : ''}
+       <button class="mini-btn" data-act="Completed" data-id="${esc(b.id)}">Done</button>
+       <button class="mini-btn" data-act="No-Show" data-id="${esc(b.id)}">No-show</button>
+       <button class="mini-btn" data-act="Cancelled" data-id="${esc(b.id)}">Cancel</button>`;
+  return `<li class="item${closed ? ' dim' : ''}${b.status === 'Cancelled' ? ' cancel' : ''}">
+    <span class="mono" aria-hidden="true">${esc(initials(b.clientName))}</span>
+    <div class="name">${esc(b.clientName)}<small>${esc(b.refCode)}</small></div>
+    <div class="time">${esc(niceTime(b.time))}</div>
+    <div class="meta">${esc(shortSvcs)} · ${esc(firstName(b.barberName))} · <a href="tel:${esc(digits(b.clientPhone))}">${esc(prettyPhone(b.clientPhone))}</a></div>
+    <div class="chips">${b.lateMinutes && !closed ? `<span class="st late">${esc(b.lateMinutes)} min late</span>` : ''}<span class="st ${esc(String(b.status).replace(/\s+/g, '-'))}">${esc(b.status)}</span></div>
+    ${acts.trim() ? `<div class="acts">${acts}</div>` : ''}
+  </li>`;
+}
+
+function exportCsv() {
+  const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const head = ['date', 'time', 'refCode', 'clientName', 'clientPhone', 'services', 'barber', 'totalCost', 'totalMin', 'status', 'lateMinutes', 'notes', 'createdAt'];
+  const lines = [head.join(',')].concat(visibleRows().map((b) => [
+    b.date, b.time, b.refCode, b.clientName, b.clientPhone, (b.services || []).join(' + '), b.barberName,
+    b.totalCost, b.totalMin, b.status, b.lateMinutes || '', b.notes, b.createdAt
+  ].map(cell).join(',')));
+  const url = URL.createObjectURL(new Blob([lines.join('\n') + '\n'], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = `elite-cuts-bookings-${todayYmd()}.csv`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+/* ---------------- boot ---------------- */
+seedDemo();
+const params = new URLSearchParams(location.search);
+if (['admin', 'management'].includes(params.get('portal'))) initAdmin();
+else { renderSide(); setComposer(); runChat(); }
+</script>
+</body>
+</html>
