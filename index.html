@@ -101,6 +101,28 @@
         </div>
       </div>
 
+      <!-- NEXT OPEN CHAIR (earliest free slot across all barbers, next 7 days) -->
+      <div id="nextChairCard" role="region" class="hidden glass-card rounded-2xl p-4 border border-accent/40" aria-labelledby="nextChairHeading">
+        <div class="flex items-center justify-between">
+          <h3 id="nextChairHeading" class="text-xs font-bold uppercase tracking-wider text-accent flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]" aria-hidden="true"></span> Next open chair
+          </h3>
+          <span class="text-[10px] text-gray-400"><i class="fa-regular fa-clock mr-1" aria-hidden="true"></i>1-tap booking</span>
+        </div>
+        <div id="nextChairBody" aria-live="polite" class="mt-2">
+          <p id="nextChairWhen" class="font-brand text-lg font-bold text-white leading-tight"></p>
+          <p id="nextChairService" class="text-xs text-gray-400 mt-1"></p>
+        </div>
+        <div class="mt-3.5 flex items-center gap-3">
+          <button type="button" id="nextChairBookBtn" onclick="bookNextChair()" class="flex-1 gold-gradient text-[#1a1a2e] font-bold text-sm py-3 px-4 rounded-xl shadow-lg flex items-center justify-center gap-2 active:scale-95 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f3cc4d] focus-visible:ring-offset-2 focus-visible:ring-offset-[#1a1a2e]">
+            <i class="fa-solid fa-bolt" aria-hidden="true"></i> Book it
+          </button>
+          <button type="button" id="nextChairOtherBtn" onclick="pickAnotherTime()" class="text-xs font-semibold text-accent underline-offset-2 hover:underline px-1 py-2 rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-[#f3cc4d]">
+            Pick another time
+          </button>
+        </div>
+      </div>
+
       <div class="grid grid-cols-3 gap-2.5 text-center">
         <div class="glass-card rounded-xl p-3">
           <div class="text-accent font-bold text-base"><i class="fa-solid fa-star text-xs mr-1"></i>4.9</div>
@@ -690,6 +712,8 @@
           </div>
         </div>
       `).join('');
+
+      renderNextChair();
     }
 
     function switchTab(tab) {
@@ -711,6 +735,8 @@
         updateBookingTotals();
       } else if (tab === 'loyalty') {
         renderPunchCard(0);
+      } else if (tab === 'home') {
+        renderNextChair();
       }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -829,12 +855,7 @@
 
       const grid = document.getElementById('bookingTimeSlotsGrid');
       grid.innerHTML = shopConfig.timeSlots.map(slot => {
-        const isTaken = remoteTaken.includes(slot) || bookings.some(
-          b => b.barberId === currentBooking.barberId &&
-               b.date === currentBooking.date &&
-               b.time === slot &&
-               b.status !== 'Cancelled'
-        );
+        const isTaken = remoteTaken.includes(slot) || isSlotTakenLocally(currentBooking.barberId, currentBooking.date, slot);
         const isSelected = currentBooking.time === slot && !isTaken;
         if (isTaken) {
           return `<button disabled class="py-2.5 rounded-xl bg-white/5 text-gray-600 text-xs font-medium line-through border border-white/5 cursor-not-allowed">${slot}</button>`;
@@ -850,6 +871,114 @@
     function selectTimeSlot(slot) {
       currentBooking.time = slot;
       renderTimeSlots();
+    }
+
+    function isSlotTakenLocally(barberId, date, slot) {
+      return bookings.some(b => b.barberId === barberId && b.date === date && b.time === slot && b.status !== 'Cancelled');
+    }
+
+    // NEXT OPEN CHAIR — earliest free slot across all barbers, today then the next days.
+    const NEXT_CHAIR_DAYS = 7;          // today + 6
+    const NEXT_CHAIR_LEAD_MIN = 15;     // never offer a slot that starts within 15 minutes
+    const nextChairRemote = new Map();  // `${date}|${barberId}` -> { done, times } from GET /api/slots
+    let nextChair = null;               // { date, time, barberId, dayOffset }
+
+    function localDateStr(d) {
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    }
+
+    function slotToMinutes(slot) {
+      const m = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(String(slot).trim());
+      if (!m) return null;
+      return (Number(m[1]) % 12 + (m[3].toUpperCase() === 'PM' ? 12 : 0)) * 60 + Number(m[2]);
+    }
+
+    // API mode only: lazily fetch booked times for one day (one request per barber), then re-render.
+    function ensureNextChairRemote(date) {
+      shopConfig.barbers.forEach(b => {
+        const key = `${date}|${b.id}`;
+        if (nextChairRemote.has(key)) return;
+        const entry = { done: false, times: [] };
+        nextChairRemote.set(key, entry);
+        const finish = (times) => {
+          entry.done = true;
+          entry.times = times;
+          if (nextChairRemote.get(key) === entry) renderNextChair();
+        };
+        api(`/api/slots?date=${encodeURIComponent(date)}&barberId=${encodeURIComponent(b.id)}`)
+          .then(res => finish(res && res.ok && res.data && Array.isArray(res.data.booked) ? res.data.booked : []))
+          .catch(err => { console.warn('Next-chair slot fetch failed, using local data:', err); finish([]); });
+      });
+    }
+
+    function findNextOpenChair() {
+      if (!shopConfig.barbers.length || !shopConfig.services.length) return null;
+      const now = new Date();
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      const slots = shopConfig.timeSlots
+        .map(slot => ({ slot, min: slotToMinutes(slot) }))
+        .filter(s => s.min !== null)
+        .sort((a, b) => a.min - b.min);
+      for (let i = 0; i < NEXT_CHAIR_DAYS; i++) {
+        const date = localDateStr(new Date(now.getFullYear(), now.getMonth(), now.getDate() + i));
+        if (apiConfigured()) ensureNextChairRemote(date);
+        for (const { slot, min } of slots) {
+          if (i === 0 && min < nowMin + NEXT_CHAIR_LEAD_MIN) continue;
+          for (const b of shopConfig.barbers) {
+            if (isSlotTakenLocally(b.id, date, slot)) continue;
+            const remote = apiConfigured() ? nextChairRemote.get(`${date}|${b.id}`) : null;
+            if (remote && remote.times.includes(slot)) continue;
+            return { date, time: slot, barberId: b.id, dayOffset: i };
+          }
+        }
+      }
+      return null;
+    }
+
+    function renderNextChair() {
+      const card = document.getElementById('nextChairCard');
+      if (!card) return;
+      nextChair = findNextOpenChair();
+      if (!nextChair) {
+        card.classList.add('hidden');
+        return;
+      }
+      const svc = shopConfig.services[0];
+      const barber = shopConfig.barbers.find(b => b.id === nextChair.barberId);
+      const [y, mo, d] = nextChair.date.split('-').map(Number);
+      const dayLabel = nextChair.dayOffset === 0 ? 'Today'
+        : nextChair.dayOffset === 1 ? 'Tomorrow'
+        : new Date(y, mo - 1, d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      const time = nextChair.time.replace(/^0/, '');
+      const first = barber.firstName || barber.name.split(' ')[0];
+      document.getElementById('nextChairWhen').textContent = `${dayLabel}, ${time} with ${first}`;
+      document.getElementById('nextChairService').textContent = `${svc.name} · ${svc.duration} min · $${svc.price}`;
+      document.getElementById('nextChairBookBtn').setAttribute('aria-label', `Book it: ${svc.name}, ${dayLabel} at ${time} with ${barber.name}`);
+      card.classList.remove('hidden');
+    }
+
+    function refreshNextChair() {
+      nextChairRemote.clear();
+      renderNextChair();
+    }
+
+    // "Book it": pre-fill the normal wizard (default service, barber, date, time) and jump to details.
+    function bookNextChair() {
+      renderNextChair();
+      if (!nextChair) return;
+      currentBooking.serviceIds = [shopConfig.services[0].id];
+      currentBooking.barberId = nextChair.barberId;
+      currentBooking.date = nextChair.date;
+      currentBooking.time = nextChair.time;
+      document.getElementById('bookingDateInput').value = nextChair.date;
+      switchTab('book');
+      goToBookingStep(4);
+      document.getElementById('clientName').focus({ preventScroll: true });
+    }
+
+    function pickAnotherTime() {
+      switchTab('book');
+      goToBookingStep(1);
     }
 
     function goToBookingStep(step) {
@@ -939,6 +1068,7 @@
         if (res.status === 409) {
           alert('That time was just taken — pick another');
           remoteBookedSlots.key = '';
+          nextChairRemote.clear();
           renderTimeSlots();
           return;
         }
@@ -979,6 +1109,7 @@
       }
 
       currentBooking.lastConfirmed = newBooking;
+      refreshNextChair();
       [1, 2, 3, 4].forEach(s => document.getElementById(`bookStep${s}`).classList.add('hidden'));
       document.getElementById('receiptCode').textContent = `REF #${refCode} (${pointsLabel})`;
       document.getElementById('receiptDetailsText').textContent = `${selected.map(s => s.name).join(' + ')} with ${barber.name} on ${newBooking.date} at ${newBooking.time}.`;
@@ -1225,17 +1356,20 @@
           alert('Could not reach the booking server to update this booking.');
         }
         renderAdminQueue();
+        refreshNextChair();
         return;
       }
       bookings = bookings.map(b => b.id === id ? { ...b, status } : b);
       localStorage.setItem(STORAGE_KEY_BOOKINGS, JSON.stringify(bookings));
       renderAdminQueue();
+      renderNextChair();
     }
 
     function clearCompletedBookings() {
       bookings = bookings.filter(b => b.status !== 'Cancelled');
       localStorage.setItem(STORAGE_KEY_BOOKINGS, JSON.stringify(bookings));
       renderAdminQueue();
+      renderNextChair();
     }
 
     function renderAdminBarbers() {
@@ -1338,6 +1472,7 @@
       shopConfig.apiBaseUrl = document.getElementById('cfgApiBaseUrl').value.trim();
       localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(shopConfig));
       remoteBookedSlots = { key: '', times: [] };
+      nextChairRemote.clear();
       applyThemeVariables();
       renderHome();
       alert('Settings Updated!' + (apiConfigured() ? ' Live API mode is on.' : ' Demo mode (no API URL).'));

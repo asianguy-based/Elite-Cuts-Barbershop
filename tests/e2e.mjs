@@ -289,12 +289,171 @@ async function offlineSuite(browser, vp) {
   });
 }
 
+async function nextChairSuite(browser, vp) {
+  // At the frozen time (Wed 2:10 PM) 09:00 AM – 01:30 PM are past, so the first open chair is 2:30 PM.
+  await test(`[${vp.name}] next open chair: one-tap Book it -> details -> confirm -> admin queue`, async () => {
+    const { context, page, errors, stats } = await newApp(browser, vp);
+    try {
+      await page.goto(BASE + '/', { waitUntil: 'load' });
+      await assertDemoMode(page);
+      await page.waitForSelector('#nextChairCard:not(.hidden)');
+      assert(await page.textContent('#nextChairWhen') === 'Today, 2:30 PM with Marcus', 'card time/barber, got ' + await page.textContent('#nextChairWhen'));
+      assert(await page.textContent('#nextChairService') === 'The Executive Cut & Style · 45 min · $45', 'card service line');
+      assert(await page.locator('#nextChairBookBtn').evaluate(e => e.tagName) === 'BUTTON', 'Book it is a real button');
+      await noHorizontalScroll(page, 'home with next-chair card');
+      await shot(page, `${vp.name}-home-nextchair`);
+
+      // Keyboard activation (focus + Enter) to prove it is reachable and usable without a pointer.
+      await page.focus('#nextChairBookBtn');
+      assert(await page.evaluate(() => document.activeElement.id) === 'nextChairBookBtn', 'Book it focusable');
+      await page.keyboard.press('Enter');
+      await page.waitForSelector('#bookStep4:not(.hidden)');
+      assert(!(await visible(page, '#bookStep1')) && !(await visible(page, '#bookStep3')), 'landed directly on details step');
+      assertIncludes(await page.getAttribute('#stepInd4', 'class'), 'bg-accent', 'step 4 indicator active');
+      const summary = await page.textContent('#bookingSummaryBox');
+      assertIncludes(summary, 'The Executive Cut & Style', 'prefilled default service');
+      assertIncludes(summary, 'Marcus Vance', 'prefilled barber');
+      assertIncludes(summary, `${TODAY} @ 02:30 PM`, 'prefilled date/time');
+      assert(await page.textContent('#bookingLiveSummary') === '$45 • 45 min', 'totals for default service');
+      assert(await page.evaluate(() => document.activeElement.id) === 'clientName', 'name field focused');
+      await shot(page, `${vp.name}-nextchair-details`);
+
+      await page.fill('#clientName', 'One Tap');
+      await page.fill('#clientPhone', '555-010-2030');
+      await page.click('#payModeChairBtn');
+      await page.click('#finalSubmitBookingBtn');
+      await page.waitForSelector('#bookConfirmation:not(.hidden)');
+      const ref = ((await page.textContent('#receiptCode')).match(/EC-\d{4}/) || [])[0];
+      assert(ref, 'ref code shown');
+      assertIncludes(await page.textContent('#receiptDetailsText'), `The Executive Cut & Style with Marcus Vance on ${TODAY} at 02:30 PM`, 'receipt');
+
+      // Card updates after the booking: Marcus is now taken at 2:30, Mateo is still free.
+      await page.click('#nav-home');
+      assert(await page.textContent('#nextChairWhen') === 'Today, 2:30 PM with Mateo', 'card moved after booking, got ' + await page.textContent('#nextChairWhen'));
+
+      // "Pick another time" opens the normal flow at step 1.
+      await page.click('#nextChairOtherBtn');
+      assert(await visible(page, '#bookStep1'), 'pick another time -> step 1');
+
+      // Booking appears in the admin queue with the right barber/date/time.
+      await page.goto(BASE + '/?portal=admin', { waitUntil: 'load' });
+      await page.waitForSelector('#adminModal:not(.hidden)');
+      await page.fill('#adminPinInput', '1234');
+      await page.click('#adminPinGate button:has-text("Unlock")');
+      await page.waitForSelector('#adminContent:not(.hidden)');
+      const row = page.locator('#adminAppointmentsList > div', { hasText: ref });
+      assert(await row.count() === 1, 'one-tap booking in admin queue');
+      assertIncludes(await row.textContent(), `One Tap (${ref})`, 'admin row client');
+      assertIncludes(await row.textContent(), `${TODAY} 02:30 PM • Marcus Vance`, 'admin row barber/date/time');
+
+      // Cancelling it frees the slot again.
+      await row.locator('button:has-text("Cancel")').click();
+      await page.click('#adminModal button:has(i.fa-xmark)');
+      assert(await page.textContent('#nextChairWhen') === 'Today, 2:30 PM with Marcus', 'cancel frees the slot');
+
+      assert(stats.liveHits === 0, 'no live Worker hits');
+      assert(errors.length === 0, 'no errors:\n' + errors.join('\n'));
+    } finally {
+      await context.close();
+    }
+  });
+
+  await test(`[${vp.name}] next open chair: stubbed API reports first slot booked, card moves on`, async () => {
+    // Fake Worker state: Marcus booked 2:30 + 3:30 today, Mateo booked 2:30 today.
+    const booked = { [`${TODAY}|brb-1`]: ['02:30 PM', '03:30 PM'], [`${TODAY}|brb-2`]: ['02:30 PM'] };
+    const stub = async (r, cors) => {
+      const req = r.request();
+      const u = new URL(req.url());
+      const json = (status, body) => r.fulfill({ status, headers: { ...cors, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+      if (u.pathname === '/api/slots') {
+        return json(200, { booked: booked[`${u.searchParams.get('date')}|${u.searchParams.get('barberId')}`] || [] });
+      }
+      if (u.pathname === '/api/bookings' && req.method() === 'POST') {
+        const body = req.postDataJSON();
+        const key = `${body.date}|${body.barberId}`;
+        booked[key] = (booked[key] || []).concat(body.time);
+        return json(201, { booking: { ...body, id: 'stub-1', refCode: 'EC-5555', status: 'Confirmed', paid: false } });
+      }
+      return json(404, { error: 'not stubbed' });
+    };
+    const { context, page, errors, stats } = await newApp(browser, vp, { mode: 'stub', stub });
+    try {
+      await page.goto(BASE + '/', { waitUntil: 'load' });
+      await page.waitForFunction(() => document.getElementById('nextChairWhen').textContent === 'Today, 3:30 PM with Mateo', null, { timeout: 5000 })
+        .catch(async () => { throw new Error('card did not move to 3:30 PM Mateo, got ' + await page.textContent('#nextChairWhen')); });
+      const slotCalls = stats.stubCalls.filter(u => u.includes('/api/slots'));
+      assert(slotCalls.length === 2 && slotCalls.every(u => u.includes(`date=${TODAY}`)), 'only today x 2 barbers fetched, got ' + JSON.stringify(slotCalls));
+
+      await page.click('#nextChairBookBtn');
+      await page.waitForSelector('#bookStep4:not(.hidden)');
+      const summary = await page.textContent('#bookingSummaryBox');
+      assertIncludes(summary, 'Mateo Cruz', 'stub: prefilled barber');
+      assertIncludes(summary, `${TODAY} @ 03:30 PM`, 'stub: prefilled time');
+      await page.fill('#clientName', 'Stub Client');
+      await page.fill('#clientPhone', '5550009999');
+      await page.click('#payModeChairBtn');
+      await page.click('#finalSubmitBookingBtn');
+      await page.waitForSelector('#bookConfirmation:not(.hidden)');
+      assertIncludes(await page.textContent('#receiptCode'), 'EC-5555', 'stub ref code');
+      // After booking the card re-fetches and moves on: 4:30 PM, Marcus is first in roster order.
+      await page.click('#nav-home');
+      await page.waitForFunction(() => document.getElementById('nextChairWhen').textContent === 'Today, 4:30 PM with Marcus', null, { timeout: 5000 })
+        .catch(async () => { throw new Error('card did not move after stub booking, got ' + await page.textContent('#nextChairWhen')); });
+      assert(stats.liveHits === 0, 'no live Worker hits');
+      assert(errors.length === 0, 'no errors:\n' + errors.join('\n'));
+    } finally {
+      await context.close();
+    }
+  });
+
+  await test(`[${vp.name}] next open chair: API unreachable fails soft to local data`, async () => {
+    const { context, page, errors, stats } = await newApp(browser, vp, { mode: 'stub', stub: null });
+    try {
+      await page.goto(BASE + '/', { waitUntil: 'load' });
+      await page.waitForFunction(() => !document.getElementById('nextChairCard').classList.contains('hidden'));
+      await page.waitForTimeout(300);
+      assert(await page.textContent('#nextChairWhen') === 'Today, 2:30 PM with Marcus', 'local fallback slot');
+      assert(stats.stubCalls.length >= 1, 'API was attempted');
+      assert(stats.liveHits === 0, 'no live Worker hits');
+      assert(errors.length === 0, 'no errors:\n' + errors.join('\n'));
+    } finally {
+      await context.close();
+    }
+  });
+
+  await test(`[${vp.name}] next open chair: looks ahead up to 7 days, hides when fully booked`, async () => {
+    const days = ['2026-11-19', '2026-11-20', '2026-11-21', '2026-11-22', '2026-11-23', '2026-11-24'];
+    const seed = [];
+    days.forEach(date => ['brb-1', 'brb-2'].forEach(barberId => seed.push({ id: `${date}-${barberId}`, refCode: 'EC-0000', services: ['x'], barberId, barberName: barberId, date, time: '09:00 AM', clientName: 'Seed', clientPhone: '1', status: 'Confirmed' })));
+    const extraConfig = { timeSlots: ['09:00 AM'] }; // today's only slot is already past
+    // Last day, last barber free -> card shows it.
+    let app = await newApp(browser, vp, { extraConfig, seedBookings: seed.slice(0, -1) });
+    try {
+      await app.page.goto(BASE + '/', { waitUntil: 'load' });
+      assert(await app.page.textContent('#nextChairWhen') === 'Tue, Nov 24, 9:00 AM with Mateo', 'day 7 slot, got ' + await app.page.textContent('#nextChairWhen'));
+      assert(app.errors.length === 0, 'no errors:\n' + app.errors.join('\n'));
+    } finally {
+      await app.context.close();
+    }
+    // Everything booked -> card hidden.
+    app = await newApp(browser, vp, { extraConfig, seedBookings: seed });
+    try {
+      await app.page.goto(BASE + '/', { waitUntil: 'load' });
+      assert(await app.page.locator('#nextChairCard').isHidden(), 'card hidden when nothing free in 7 days');
+      assert(app.errors.length === 0, 'no errors:\n' + app.errors.join('\n'));
+    } finally {
+      await app.context.close();
+    }
+  });
+}
+
 // ---------------------------------------------------------------- main
 await startServer();
 const browser = await chromium.launch();
 try {
   for (const vp of VIEWPORTS) {
     await coreSuite(browser, vp);
+    await nextChairSuite(browser, vp);
     await offlineSuite(browser, vp);
   }
 } finally {
