@@ -16,6 +16,8 @@
  *   PATCH /api/manager/bookings/:id { status }               -> { booking }              (X-Manager-Token)
  *   GET   /api/manager/loyalty.csv                           -> text/csv                 (X-Manager-Token)
  *   GET   /api/manager/report?from&to                        -> { rows }   (new: per-day, per-barber totals)
+ *   GET   /api/shop                                          -> { settings, updatedAt }  (public shop profile)
+ *   PUT   /api/manager/shop     { ...settings }              -> { settings, updatedAt }  (X-Manager-Token)
  *   POST  /api/webhook/stripe                                -> { received: true }
  *
  * Secrets: MANAGER_PIN (required)
@@ -134,7 +136,7 @@ export function cors(req, env) {
   const list = allowedOrigins(env);
   const origin = req.headers.get('Origin');
   const base = {
-    'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, X-Manager-Token',
     'Access-Control-Max-Age': '86400',
     'Vary': 'Origin'
@@ -186,6 +188,176 @@ async function markPaid(env, id) {
   return getBooking(env, id);
 }
 
+// ---------- shop settings (Manager Studio profile, shared by every client) ----------
+// Before this, Manager Studio edits were saved only in the manager's own browser, so clients never
+// saw a new shop name, review or barber. Now they live in one D1 row that every client loads.
+// The manager can only write the fields listed here, each checked for type, length and format,
+// because the client pages render them.
+const SAFE_ID = /^[A-Za-z0-9_-]{1,40}$/;
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+const DATA_IMAGE = /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/;
+const MAX_IMAGE_CHARS = 400000;          // ~300 KB photo; the app shrinks uploads well below this
+const MAX_SETTINGS_BYTES = 1500000;      // D1 rows top out at 2 MB
+const MAX_BODY_BYTES = 2000000;
+
+class SettingsError extends Error {}
+const fail = (msg) => { throw new SettingsError(msg); };
+
+function text(v, field, max, { required = false } = {}) {
+  if (v === undefined || v === null) v = '';
+  if (typeof v !== 'string') fail(`${field} must be text`);
+  const t = v.trim();
+  if (required && !t) fail(`${field} is required`);
+  if (t.length > max) fail(`${field} must be at most ${max} characters`);
+  return t;
+}
+function num(v, field, min, max, { int = false } = {}) {
+  const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : v;
+  if (typeof n !== 'number' || !Number.isFinite(n) || n < min || n > max || (int && !Number.isInteger(n))) {
+    fail(`${field} must be a ${int ? 'whole ' : ''}number from ${min} to ${max}`);
+  }
+  return n;
+}
+function bool(v, field) {
+  if (typeof v !== 'boolean') fail(`${field} must be true or false`);
+  return v;
+}
+function httpsUrl(v, field, { allowEmpty = true } = {}) {
+  const t = text(v, field, 1000);
+  if (!t && allowEmpty) return '';
+  let u;
+  try { u = new URL(t); } catch { fail(`${field} must be an https:// link`); }
+  if (u.protocol !== 'https:' || u.username || u.password) fail(`${field} must be an https:// link`);
+  return u.href;
+}
+function image(v, field) {
+  if (typeof v === 'string' && v.startsWith('data:')) {
+    if (v.length > MAX_IMAGE_CHARS) fail(`${field} photo is too large (max about 300 KB)`);
+    if (!DATA_IMAGE.test(v)) fail(`${field} must be a PNG, JPEG, WebP or GIF photo`);
+    return v;
+  }
+  return httpsUrl(v, field, { allowEmpty: false });
+}
+function list(v, field, max, { min = 0 } = {}) {
+  if (!Array.isArray(v)) fail(`${field} must be a list`);
+  if (v.length < min || v.length > max) fail(`${field} must have ${min ? `${min} to ` : 'at most '}${max} items`);
+  v.forEach((x, i) => { if (!x || typeof x !== 'object' || Array.isArray(x)) fail(`${field}[${i}] must be an object`); });
+  return v;
+}
+function uniqueIds(items, field) {
+  const seen = new Set();
+  for (const x of items) { if (seen.has(x.id)) fail(`${field} ids must be unique (${x.id})`); seen.add(x.id); }
+  return items;
+}
+
+const SETTINGS_FIELDS = {
+  shopName: (v) => text(v, 'shopName', 60, { required: true }),
+  tagline: (v) => text(v, 'tagline', 120),
+  phone: (v) => { const t = text(v, 'phone', 30); if (!/^[0-9+()\-. ]*$/.test(t)) fail('phone may only contain digits, spaces and + ( ) - .'); return t; },
+  address: (v) => text(v, 'address', 200),
+  primaryColor: (v) => { if (!HEX_COLOR.test(v)) fail('primaryColor must look like #1a1a2e'); return v.toLowerCase(); },
+  accentColor: (v) => { if (!HEX_COLOR.test(v)) fail('accentColor must look like #d4af37'); return v.toLowerCase(); },
+  depositAmount: (v) => num(v, 'depositAmount', 0, 500),
+  requireDeposit: (v) => bool(v, 'requireDeposit'),
+  paymentLinkUrl: (v) => httpsUrl(v, 'paymentLinkUrl'),
+  reviewsAreSamples: (v) => bool(v, 'reviewsAreSamples'),
+  reviews: (v) => list(v, 'reviews', 50).map((r, i) => ({
+    name: text(r.name, `reviews[${i}].name`, 60) || 'Client',
+    stars: num(Math.round(Number(r.stars)), `reviews[${i}].stars`, 1, 5, { int: true }),
+    text: text(r.text, `reviews[${i}].text`, 600, { required: true })
+  })),
+  services: (v) => uniqueIds(list(v, 'services', 30, { min: 1 }).map((s, i) => {
+    if (!SAFE_ID.test(s.id || '')) fail(`services[${i}].id must be letters, digits, - or _`);
+    return {
+      id: s.id,
+      name: text(s.name, `services[${i}].name`, 100, { required: true }),
+      price: num(s.price, `services[${i}].price`, 0, 10000),
+      duration: num(s.duration, `services[${i}].duration`, 5, 480, { int: true }),
+      category: text(s.category, `services[${i}].category`, 30),
+      desc: text(s.desc, `services[${i}].desc`, 300)
+    };
+  }), 'services'),
+  barbers: (v) => uniqueIds(list(v, 'barbers', 30, { min: 1 }).map((b, i) => {
+    if (!SAFE_ID.test(b.id || '')) fail(`barbers[${i}].id must be letters, digits, - or _`);
+    const folder = text(b.folder, `barbers[${i}].folder`, 80);
+    if (!/^[a-z0-9_]*$/.test(folder)) fail(`barbers[${i}].folder must be lowercase letters, digits or _`);
+    const photoFilename = text(b.photoFilename, `barbers[${i}].photoFilename`, 120);
+    if (!/^[A-Za-z0-9_.-]*$/.test(photoFilename)) fail(`barbers[${i}].photoFilename has invalid characters`);
+    return {
+      id: b.id,
+      firstName: text(b.firstName, `barbers[${i}].firstName`, 40),
+      lastName: text(b.lastName, `barbers[${i}].lastName`, 40),
+      name: text(b.name, `barbers[${i}].name`, 80, { required: true }),
+      folder,
+      photoFilename,
+      role: text(b.role, `barbers[${i}].role`, 60),
+      specialty: text(b.specialty, `barbers[${i}].specialty`, 80),
+      rating: text(String(b.rating ?? ''), `barbers[${i}].rating`, 5),
+      avatar: image(b.avatar, `barbers[${i}].avatar`)
+    };
+  }), 'barbers'),
+  lookbook: (v) => list(v, 'lookbook', 40).map((l, i) => ({
+    title: text(l.title, `lookbook[${i}].title`, 100, { required: true }),
+    tag: text(l.tag, `lookbook[${i}].tag`, 30),
+    img: image(l.img, `lookbook[${i}].img`)
+  })),
+  timeSlots: (v) => {
+    if (!Array.isArray(v) || v.length < 1 || v.length > 48) fail('timeSlots must have 1 to 48 items');
+    if (v.some((t) => !TIME_SLOT.test(String(t)))) fail('each time slot must look like "09:00 AM"');
+    if (new Set(v).size !== v.length) fail('timeSlots must not repeat');
+    return v.map(String);
+  }
+};
+export const SHOP_SETTINGS_FIELDS = Object.keys(SETTINGS_FIELDS);
+
+/** Returns { settings } with only the fields sent, each cleaned, or { error }. */
+export function validateShopSettings(body) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return { error: 'Send the settings as a JSON object' };
+  const unknown = Object.keys(body).filter((k) => !SETTINGS_FIELDS[k]);
+  if (unknown.length) return { error: `Unknown settings: ${unknown.join(', ')}` };
+  try {
+    const settings = {};
+    for (const [k, v] of Object.entries(body)) settings[k] = SETTINGS_FIELDS[k](v);
+    return { settings };
+  } catch (err) {
+    if (err instanceof SettingsError) return { error: err.message };
+    throw err;
+  }
+}
+
+async function loadShopSettings(env) {
+  const row = await env.DB.prepare('SELECT data, updated_at FROM shop_settings WHERE id = 1').first();
+  if (!row) return { settings: null, updatedAt: null };
+  try { return { settings: JSON.parse(row.data), updatedAt: row.updated_at }; } catch { return { settings: null, updatedAt: null }; }
+}
+
+async function getShop(env) {
+  const res = json(await loadShopSettings(env));
+  res.headers.set('Cache-Control', 'no-cache');
+  return res;
+}
+
+async function managerPutShop(req, env) {
+  if (Number(req.headers.get('Content-Length') || 0) > MAX_BODY_BYTES) return json({ error: 'Settings are too large' }, 413);
+  const raw = await req.text();
+  if (raw.length > MAX_BODY_BYTES) return json({ error: 'Settings are too large' }, 413);
+  let body;
+  try { body = JSON.parse(raw); } catch { return json({ error: 'Invalid JSON' }, 400); }
+  const { settings, error } = validateShopSettings(body);
+  if (error) return json({ error }, 400);
+  // Fields not sent keep their saved value, so a client that only edits reviews can't wipe barbers.
+  const current = (await loadShopSettings(env)).settings || {};
+  const merged = { ...current, ...settings };
+  const data = JSON.stringify(merged);
+  if (enc.encode(data).length > MAX_SETTINGS_BYTES) return json({ error: 'Settings are too large (use smaller photos)' }, 413);
+  const updatedAt = nowIso();
+  await env.DB.prepare(
+    `INSERT INTO shop_settings (id, data, updated_at) VALUES (1, ?1, ?2)
+     ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`
+  ).bind(data, updatedAt).run();
+  return json({ settings: merged, updatedAt });
+}
+
 // ---------- route handlers ----------
 async function getSlots(url, env) {
   const date = url.searchParams.get('date'), barberId = url.searchParams.get('barberId');
@@ -221,6 +393,18 @@ async function createBooking(req, env) {
   const body = await readBody(req);
   const problem = validateBooking(body);
   if (problem) return json({ error: problem }, 400);
+  // Once the shop has published its settings, a booking must name one of its barbers and time
+  // slots, and the barber's display name comes from the server rather than the client.
+  const { settings: shop } = await loadShopSettings(env);
+  let barberName = String(body.barberName);
+  if (shop && Array.isArray(shop.barbers) && shop.barbers.length) {
+    const barber = shop.barbers.find((b) => b.id === String(body.barberId));
+    if (!barber) return json({ error: "barberId is not one of this shop's barbers" }, 400);
+    barberName = barber.name;
+  }
+  if (shop && Array.isArray(shop.timeSlots) && shop.timeSlots.length && !shop.timeSlots.includes(String(body.time))) {
+    return json({ error: "time is not one of this shop's time slots" }, 400);
+  }
   const limited = await rateLimit(env, `book:${clientKey(req)}`, BOOKINGS_PER_HOUR, 3600);
   if (limited) return limited;
 
@@ -250,7 +434,7 @@ async function createBooking(req, env) {
       ).bind(
         id, refCode, phone, clientName, clientPhone, JSON.stringify(body.services.map(String)),
         Number(body.totalCost) || 0, Number(body.totalMin) || 0,
-        String(body.barberId), String(body.barberName), body.date, String(body.time),
+        String(body.barberId), barberName, body.date, String(body.time),
         String(body.notes || '').slice(0, 500), body.paymentMode,
         isDeposit ? Number(body.depositAmount) || 0 : 0,
         isDeposit ? 'Deposit Unpaid' : 'Confirmed', nowIso()
@@ -480,6 +664,8 @@ const routes = [
   ['PATCH', /^\/api\/manager\/bookings\/([^/]+)$/, (req, env, url, m) => managerPatchBooking(req, env, decodeURIComponent(m[1])), true],
   ['GET', /^\/api\/manager\/loyalty\.csv$/, (req, env) => managerLoyaltyCsv(env), true],
   ['GET', /^\/api\/manager\/report$/, (req, env, url) => managerReport(url, env), true],
+  ['GET', /^\/api\/shop$/, (req, env) => getShop(env)],
+  ['PUT', /^\/api\/manager\/shop$/, (req, env) => managerPutShop(req, env), true],
   ['POST', /^\/api\/webhook\/stripe$/, (req, env) => stripeWebhook(req, env)]
 ];
 

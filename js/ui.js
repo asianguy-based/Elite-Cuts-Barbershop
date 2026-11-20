@@ -21,16 +21,16 @@ export function renderHome() {
   refreshInstallFooter();   // keeps the footer's shop name in sync with white-label edits
   const srvList = document.getElementById('homeServicesList');
   srvList.innerHTML = shopConfig.services.map(s => `
-    <div onclick="quickBookService('${s.id}')" class="glass-card rounded-xl p-3.5 flex items-center justify-between cursor-pointer hover:border-accent/60 transition">
+    <div data-id="${escapeHtml(s.id)}" onclick="quickBookService(this.dataset.id)" class="glass-card rounded-xl p-3.5 flex items-center justify-between cursor-pointer hover:border-accent/60 transition">
       <div class="pr-3">
         <div class="flex items-center gap-2">
-          <span class="text-sm font-bold text-white">${s.name}</span>
-          <span class="text-[10px] px-2 py-0.5 rounded bg-white/10 text-gray-300">${s.duration}m</span>
+          <span class="text-sm font-bold text-white">${escapeHtml(s.name)}</span>
+          <span class="text-[10px] px-2 py-0.5 rounded bg-white/10 text-gray-300">${escapeHtml(s.duration)}m</span>
         </div>
-        <p class="text-xs text-gray-400 mt-0.5 line-clamp-1">${s.desc}</p>
+        <p class="text-xs text-gray-400 mt-0.5 line-clamp-1">${escapeHtml(s.desc)}</p>
       </div>
       <div class="text-right shrink-0">
-        <div class="text-accent font-extrabold text-sm">$${s.price}</div>
+        <div class="text-accent font-extrabold text-sm">$${escapeHtml(s.price)}</div>
         <span class="text-[10px] text-gray-400">Select <i class="fa-solid fa-chevron-right text-[8px]"></i></span>
       </div>
     </div>
@@ -38,28 +38,28 @@ export function renderHome() {
 
   const brbList = document.getElementById('homeBarbersList');
   brbList.innerHTML = shopConfig.barbers.map(b => `
-    <div onclick="quickBookBarber('${b.id}')" class="glass-card rounded-xl p-3 min-w-[165px] shrink-0 cursor-pointer hover:border-accent/60 transition">
+    <div data-id="${escapeHtml(b.id)}" onclick="quickBookBarber(this.dataset.id)" class="glass-card rounded-xl p-3 min-w-[165px] shrink-0 cursor-pointer hover:border-accent/60 transition">
       <div class="flex items-center gap-2.5">
-        <img src="${b.avatar}" class="w-11 h-11 rounded-full object-cover border border-accent" alt="${b.name}" />
+        <img src="${escapeHtml(b.avatar)}" class="w-11 h-11 rounded-full object-cover border border-accent" alt="${escapeHtml(b.name)}" />
         <div>
-          <div class="text-xs font-bold text-white leading-tight">${b.name}</div>
-          <div class="text-[10px] text-accent font-semibold mt-0.5"><i class="fa-solid fa-star text-[9px]"></i> ${b.rating}</div>
+          <div class="text-xs font-bold text-white leading-tight">${escapeHtml(b.name)}</div>
+          <div class="text-[10px] text-accent font-semibold mt-0.5"><i class="fa-solid fa-star text-[9px]"></i> ${escapeHtml(b.rating)}</div>
         </div>
       </div>
-      <div class="text-[11px] text-gray-300 mt-2 font-medium">${b.specialty}</div>
-      <div class="text-[10px] text-gray-400 mt-0.5">Folder: /barbers/${b.folder}/</div>
+      <div class="text-[11px] text-gray-300 mt-2 font-medium">${escapeHtml(b.specialty)}</div>
+      <div class="text-[10px] text-gray-400 mt-0.5">Folder: /barbers/${escapeHtml(b.folder)}/</div>
     </div>
   `).join('');
 
   const galGrid = document.getElementById('galleryGrid');
   galGrid.innerHTML = shopConfig.lookbook.map(item => `
-    <div onclick="selectLookbookStyle('${item.title}')" class="glass-card rounded-xl overflow-hidden cursor-pointer group">
+    <div data-title="${escapeHtml(item.title)}" onclick="selectLookbookStyle(this.dataset.title)" class="glass-card rounded-xl overflow-hidden cursor-pointer group">
       <div class="relative h-36 overflow-hidden">
-        <img src="${item.img}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" alt="${item.title}" />
-        <span class="absolute top-2 left-2 text-[10px] bg-black/70 text-accent px-2 py-0.5 rounded font-semibold">${item.tag}</span>
+        <img src="${escapeHtml(item.img)}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" alt="${escapeHtml(item.title)}" />
+        <span class="absolute top-2 left-2 text-[10px] bg-black/70 text-accent px-2 py-0.5 rounded font-semibold">${escapeHtml(item.tag)}</span>
       </div>
       <div class="p-2.5">
-        <div class="text-xs font-semibold text-white leading-snug">${item.title}</div>
+        <div class="text-xs font-semibold text-white leading-snug">${escapeHtml(item.title)}</div>
         <div class="text-[10px] text-accent mt-1">Book This Cut <i class="fa-solid fa-arrow-right text-[9px]"></i></div>
       </div>
     </div>

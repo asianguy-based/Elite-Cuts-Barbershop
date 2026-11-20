@@ -1,6 +1,6 @@
-import { MANAGER_TOKEN_KEY, api, apiConfigured, escapeHtml } from './api.js';
-import { refreshNextChair, renderNextChair, resetSlotCaches } from './booking.js';
-import { STORAGE_KEY_CONFIG, saveConfig, shopConfig } from './config.js';
+import { MANAGER_TOKEN_KEY, api, apiConfigured, escapeHtml, loadSharedSettings, publishSharedSettings } from './api.js';
+import { refreshNextChair, renderNextChair, resetSlotCaches, syncBookingWithConfig } from './booking.js';
+import { STORAGE_KEY_CONFIG, pickShared, saveConfig, shopConfig } from './config.js';
 import { LoyaltyVault, STORAGE_KEY_BOOKINGS, STORAGE_KEY_LOYALTY, bookings, loyaltyDB, normalizePhone, saveBookings, saveLoyaltyDB, setBookings } from './storage.js';
 import { applyThemeVariables, renderHome, reviewsToText, switchTab, textToReviews } from './ui.js';
 
@@ -68,6 +68,16 @@ export function importLoyaltyCSV(event) {
 // ADMIN STUDIO
 export function openAdminModal() {
   document.getElementById('adminModal').classList.remove('hidden');
+  fillSettingsForm();
+  document.getElementById('adminPinHint').textContent = apiConfigured()
+    ? '(Live mode — PIN is checked by the API server)'
+    : '(Demo mode — set an API URL in Settings for a real PIN. Demo PIN: 1234)';
+  setPublishHint('');
+  renderAdminQueue();
+  renderAdminBarbers();
+}
+
+function fillSettingsForm() {
   document.getElementById('cfgShopName').value = shopConfig.shopName;
   document.getElementById('cfgTagline').value = shopConfig.tagline;
   document.getElementById('cfgPrimaryColor').value = shopConfig.primaryColor || '#1a1a2e';
@@ -76,11 +86,27 @@ export function openAdminModal() {
   document.getElementById('cfgApiBaseUrl').value = shopConfig.apiBaseUrl || '';
   document.getElementById('cfgReviews').value = reviewsToText(shopConfig.reviews);
   document.getElementById('cfgReviewsAreSamples').checked = !!shopConfig.reviewsAreSamples;
-  document.getElementById('adminPinHint').textContent = apiConfigured()
-    ? '(Live mode — PIN is checked by the API server)'
-    : '(Demo mode — set an API URL in Settings for a real PIN. Demo PIN: 1234)';
-  renderAdminQueue();
-  renderAdminBarbers();
+}
+
+function setPublishHint(msg) {
+  const el = document.getElementById('adminPublishHint');
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.toggle('hidden', !msg);
+}
+
+// Live mode: the studio edits the published profile, so pull the latest one before showing the form.
+async function syncSettingsFromServer() {
+  const result = await loadSharedSettings();
+  if (result && result.changed) { applyThemeVariables(); renderHome(); }
+  fillSettingsForm();
+  if (result && !result.published) {
+    setPublishHint('Your shop settings are not published yet, so clients see the defaults. Press Apply Settings to publish what is shown here.');
+  } else if (!result) {
+    setPublishHint('Could not load the published shop settings. Edits will be checked when you save.');
+  } else {
+    setPublishHint('');
+  }
 }
 
 export function closeAdminModal() {
@@ -121,6 +147,7 @@ export async function unlockAdmin() {
   }
   document.getElementById('adminPinGate').classList.add('hidden');
   document.getElementById('adminContent').classList.remove('hidden');
+  if (apiConfigured()) await syncSettingsFromServer();
   renderAdminQueue();
   renderAdminBarbers();
 }
@@ -193,13 +220,13 @@ export function renderAdminBarbers() {
   list.innerHTML = shopConfig.barbers.map(b => `
     <div class="p-2.5 rounded-xl bg-primary border border-white/10 flex items-center justify-between text-xs">
       <div class="flex items-center gap-2">
-        <img src="${b.avatar}" class="w-8 h-8 rounded-full object-cover border border-accent" />
+        <img src="${escapeHtml(b.avatar)}" class="w-8 h-8 rounded-full object-cover border border-accent" alt="" />
         <div>
-          <div class="font-bold text-white">${b.name}</div>
-          <div class="text-[10px] text-accent">Folder: /barbers/${b.folder}/ (${b.photoFilename})</div>
+          <div class="font-bold text-white">${escapeHtml(b.name)}</div>
+          <div class="text-[10px] text-accent">Folder: /barbers/${escapeHtml(b.folder)}/ (${escapeHtml(b.photoFilename)})</div>
         </div>
       </div>
-      <button onclick="removeBarber('${b.id}')" class="px-2 py-1 rounded bg-rose-500/20 text-rose-300 text-[10px]">
+      <button data-id="${escapeHtml(b.id)}" onclick="removeBarber(this.dataset.id)" aria-label="Remove ${escapeHtml(b.name)}" class="px-2 py-1 rounded bg-rose-500/20 text-rose-300 text-[10px]">
         <i class="fa-solid fa-trash-can"></i>
       </button>
     </div>
@@ -223,22 +250,60 @@ export function addNewBarberWithFolder() {
 
   const existingSameFolder = shopConfig.barbers.filter(b => b.folder === folderName);
   const nextNum = String(existingSameFolder.length + 1).padStart(3, '0');
-  const ext = fileInput.files[0] ? fileInput.files[0].name.split('.').pop() : 'jpg';
-  const filename = `${folderName}_${nextNum}.${ext}`;
+  const filename = `${folderName}_${nextNum}.jpg`;   // uploads are re-encoded as JPEG below
 
   if (fileInput.files && fileInput.files[0]) {
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      saveBarberToConfig(first, last, folderName, filename, specialty, e.target.result);
-    };
-    reader.readAsDataURL(fileInput.files[0]);
-  } else {
-    const defaultAvatar = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80';
-    saveBarberToConfig(first, last, folderName, filename, specialty, defaultAvatar);
+    // Shrink the photo first: it is stored with the shop settings and downloaded by every client.
+    return shrinkPhoto(fileInput.files[0]).then(dataUrl => {
+      if (!dataUrl) { alert('Could not read that photo. Try a JPEG or PNG.'); return; }
+      return saveBarberToConfig(first, last, folderName, filename, specialty, dataUrl);
+    });
   }
+  const defaultAvatar = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80';
+  return saveBarberToConfig(first, last, folderName, filename, specialty, defaultAvatar);
 }
 
-export function saveBarberToConfig(first, last, folder, filename, specialty, avatar) {
+/** Read an image file and return it as a JPEG data URL at most `max` pixels on its longest side. */
+export function shrinkPhoto(file, max = 320) {
+  return new Promise(resolve => {
+    const reader = new FileReader();
+    reader.onerror = () => resolve(null);
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => resolve(null);
+      img.onload = () => {
+        try {
+          const scale = Math.min(1, max / Math.max(img.width, img.height));
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round(img.width * scale));
+          canvas.height = Math.max(1, Math.round(img.height * scale));
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/jpeg', 0.85));
+        } catch (err) {
+          resolve(null);
+        }
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// Live mode: send the change to the API first and only show it once the server has stored it,
+// so the studio never shows an edit that clients won't see. Demo mode: save on this device.
+async function commitShared(changes) {
+  if (apiConfigured()) {
+    const result = await publishSharedSettings(changes);
+    if (!result.ok) { alert('Not saved: ' + result.error); return false; }
+    setPublishHint('');
+    return true;
+  }
+  Object.assign(shopConfig, changes);
+  saveConfig();
+  return true;
+}
+
+export async function saveBarberToConfig(first, last, folder, filename, specialty, avatar) {
   const newBarber = {
     id: 'brb-' + Date.now(),
     firstName: first,
@@ -252,8 +317,7 @@ export function saveBarberToConfig(first, last, folder, filename, specialty, ava
     avatar
   };
 
-  shopConfig.barbers.push(newBarber);
-  saveConfig();
+  if (!(await commitShared({ barbers: [...shopConfig.barbers, newBarber] }))) return;
 
   document.getElementById('newBarberFirst').value = '';
   document.getElementById('newBarberLast').value = '';
@@ -263,35 +327,51 @@ export function saveBarberToConfig(first, last, folder, filename, specialty, ava
   renderAdminBarbers();
   renderHome();
   applyThemeVariables();
-  alert(`Barber folder created: /barbers/${folder}/\nPhoto saved as: ${filename}`);
+  alert(`Barber folder created: /barbers/${folder}/\nPhoto saved as: ${filename}` + (apiConfigured() ? '\nPublished to every client.' : ''));
 }
 
-export function removeBarber(id) {
+export async function removeBarber(id) {
   if (shopConfig.barbers.length <= 1) {
     alert('You must keep at least one active barber chair.');
     return;
   }
-  shopConfig.barbers = shopConfig.barbers.filter(b => b.id !== id);
-  saveConfig();
+  if (!(await commitShared({ barbers: shopConfig.barbers.filter(b => b.id !== id) }))) return;
+  syncBookingWithConfig();
   renderAdminBarbers();
   renderHome();
   applyThemeVariables();
 }
 
-export function saveWhiteLabelConfig() {
-  shopConfig.shopName = document.getElementById('cfgShopName').value.trim() || 'ELITE CUTS';
-  shopConfig.tagline = document.getElementById('cfgTagline').value.trim();
-  shopConfig.primaryColor = document.getElementById('cfgPrimaryColor').value;
-  shopConfig.accentColor = document.getElementById('cfgAccentColor').value;
-  shopConfig.paymentLinkUrl = document.getElementById('cfgPaymentLinkUrl').value.trim();
-  shopConfig.apiBaseUrl = document.getElementById('cfgApiBaseUrl').value.trim();
-  shopConfig.reviews = textToReviews(document.getElementById('cfgReviews').value);
-  shopConfig.reviewsAreSamples = document.getElementById('cfgReviewsAreSamples').checked;
+export async function saveWhiteLabelConfig() {
+  const edits = {
+    shopName: document.getElementById('cfgShopName').value.trim() || 'ELITE CUTS',
+    tagline: document.getElementById('cfgTagline').value.trim(),
+    primaryColor: document.getElementById('cfgPrimaryColor').value,
+    accentColor: document.getElementById('cfgAccentColor').value,
+    paymentLinkUrl: document.getElementById('cfgPaymentLinkUrl').value.trim(),
+    reviews: textToReviews(document.getElementById('cfgReviews').value),
+    reviewsAreSamples: document.getElementById('cfgReviewsAreSamples').checked
+  };
+  const apiBaseUrl = document.getElementById('cfgApiBaseUrl').value.trim();
+  const apiChanged = apiBaseUrl !== (shopConfig.apiBaseUrl || '').trim();
+  let note;
+  if (apiConfigured() && !apiChanged) {
+    // Publish the whole shared profile, so a shop's first save also publishes its services, hours etc.
+    if (!(await commitShared({ ...pickShared(), ...edits }))) return;
+    note = ' Published to every client.';
+  } else {
+    // Demo mode, or the API URL itself is changing: keep the edits on this device for now.
+    Object.assign(shopConfig, edits);
+    note = !apiBaseUrl ? ' Demo mode (no API URL).'
+      : ' API URL changed: close the Manager Studio and log in again, then Apply Settings to publish to the new server.';
+  }
+  shopConfig.apiBaseUrl = apiBaseUrl;
   saveConfig();
   resetSlotCaches();
   applyThemeVariables();
   renderHome();
-  alert('Settings Updated!' + (apiConfigured() ? ' Live API mode is on.' : ' Demo mode (no API URL).'));
+  renderAdminBarbers();
+  alert('Settings Updated!' + note);
 }
 
 export function exportConfigJSON() {

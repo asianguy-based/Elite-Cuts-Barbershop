@@ -66,7 +66,7 @@ npx wrangler deploy
 
 Then open the app, go to **Manager Studio → Settings → API URL**, paste the Worker URL (e.g. `https://elite-cuts-api.<you>.workers.dev`), and click *Apply Settings*. Leaving the field blank keeps demo mode. `ALLOWED_ORIGIN` in `wrangler.toml` is a comma-separated list of browser origins allowed to call the API; `https://*.your-project.pages.dev` also covers Pages preview deploys. Add your custom domain there if you add one (`*` allows any site).
 
-Endpoints: `GET /api/health`, `GET /api/slots?date=&barberId=`, `POST /api/bookings`, `GET /api/loyalty?phone=`, `POST /api/manager/login`, `POST /api/manager/logout`, `GET /api/manager/bookings?from=&to=`, `PATCH /api/manager/bookings/:id`, `GET /api/manager/loyalty.csv`, `GET /api/manager/report?from=&to=` (bookings, no-shows and revenue per barber per day), `POST /api/bookings/late` (client says they are running late), `POST /api/webhook/stripe`. Manager routes require the `X-Manager-Token` header returned by login. Each login gets its own random token that lasts 12 hours or until logout (closing the Manager Studio logs out); only a hash of it is stored.
+Endpoints: `GET /api/health`, `GET /api/slots?date=&barberId=`, `POST /api/bookings`, `GET /api/loyalty?phone=`, `POST /api/manager/login`, `POST /api/manager/logout`, `GET /api/manager/bookings?from=&to=`, `PATCH /api/manager/bookings/:id`, `GET /api/manager/loyalty.csv`, `GET /api/manager/report?from=&to=` (bookings, no-shows and revenue per barber per day), `GET /api/shop` (the published shop profile), `PUT /api/manager/shop` (publish it), `POST /api/bookings/late` (client says they are running late), `POST /api/webhook/stripe`. Manager routes require the `X-Manager-Token` header returned by login. Each login gets its own random token that lasts 12 hours or until logout (closing the Manager Studio logs out); only a hash of it is stored.
 
 **Stripe deposits:** the app opens your Payment Link with `client_reference_id=<refCode>`. Point a Stripe webhook for `checkout.session.completed` at `<worker-url>/api/webhook/stripe` and the booking is marked Paid and awarded its 150 pts automatically. Without the webhook, the manager can press **Paid** in the queue.
 
@@ -80,9 +80,11 @@ Endpoints: `GET /api/health`, `GET /api/slots?date=&barberId=`, `POST /api/booki
 
 **Abuse limits:** each address can make 10 bookings, 30 loyalty lookups and 10 "running late" calls an hour. Bookings must use a real slot label (`09:00 AM`), a simple barber id and a date between today and 120 days out. Pay-at-chair points (100) are awarded when the manager marks the visit **Done**, not at booking, so fake bookings earn nothing.
 
-**Upgrading an existing shop:** re-run `npx wrangler d1 execute elite-cuts --remote --file=schema.sql` before deploying this version (it adds the `manager_sessions` and `rate_limits` tables; existing data is untouched).
+**Shop settings are shared:** with the Worker backend, everything edited in the Manager Studio (shop name, tagline, colors, payment link, reviews and the sample label, barbers and their photos) is saved to the database through `PUT /api/manager/shop`, and every client loads it from `GET /api/shop` when the app opens. Before this, those edits only existed in the browser that made them. The API checks every field (type, length, colors as `#rrggbb`, links must be `https://`, photos must be PNG/JPEG/WebP/GIF under about 300 KB; uploads are shrunk to 320 px first) and refuses any other key. The API URL stays per device. The first time a shop logs in after upgrading, the studio says the settings aren't published yet: press **Apply Settings** once to publish them. Once published, bookings must name one of the shop's barbers and time slots, and the barber's name is taken from the server.
 
-**Tests:** `cd worker && npm test` runs the Worker end to end against the real `schema.sql` using Node 22+'s built-in SQLite (no Cloudflare account needed).
+**Upgrading an existing shop:** re-run `npx wrangler d1 execute elite-cuts --remote --file=schema.sql` before deploying this version (it adds the `manager_sessions`, `rate_limits` and `shop_settings` tables; existing data is untouched).
+
+**Tests:** `cd worker && npm test` runs the Worker end to end against the real `schema.sql` using Node 22+'s built-in SQLite (no Cloudflare account needed). `node --test tests/shared-settings.test.mjs` checks the app's settings code against that same Worker.
 
 ---
 
