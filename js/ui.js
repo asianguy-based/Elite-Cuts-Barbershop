@@ -1,4 +1,5 @@
 import { renderBookingStep1, renderBookingStep2, renderNextChair, renderTimeSlots, updateBookingTotals } from './booking.js';
+import { escapeHtml } from './api.js';
 import { shopConfig } from './config.js';
 import { renderPunchCard } from './loyalty.js';
 
@@ -64,7 +65,55 @@ export function renderHome() {
     </div>
   `).join('');
 
+  renderReviews();
   renderNextChair();
+}
+
+// Home-screen reviews plus the rating tile. The tile is worked out from the reviews themselves,
+// so the app never shows a score or a count that the shop didn't put in.
+export function renderReviews() {
+  const reviews = (shopConfig.reviews || []).filter(r => r && r.text);
+  const samples = !!shopConfig.reviewsAreSamples;
+  const section = document.getElementById('homeReviewsSection');
+  const scoreEl = document.getElementById('statReviewScore');
+  const labelEl = document.getElementById('statReviewLabel');
+  section.classList.toggle('hidden', reviews.length === 0);
+  document.getElementById('reviewsSampleBadge').classList.toggle('hidden', !samples);
+  if (reviews.length) {
+    const avg = reviews.reduce((t, r) => t + clampStars(r.stars), 0) / reviews.length;
+    scoreEl.textContent = avg.toFixed(1);
+    labelEl.textContent = `${reviews.length} ${samples ? 'Sample ' : ''}Review${reviews.length === 1 ? '' : 's'}`;
+  } else {
+    scoreEl.textContent = '—';
+    labelEl.textContent = 'No Reviews Yet';
+  }
+  document.getElementById('homeReviewsList').innerHTML = reviews.map(r => {
+    const n = clampStars(r.stars);
+    return `
+    <figure class="glass-card rounded-xl p-3.5">
+      <div class="text-accent text-[11px]" aria-label="${n} out of 5 stars">${'<i class="fa-solid fa-star"></i>'.repeat(n)}${'<i class="fa-regular fa-star"></i>'.repeat(5 - n)}</div>
+      <blockquote class="text-xs text-gray-200 mt-1.5 leading-relaxed">“${escapeHtml(r.text)}”</blockquote>
+      <figcaption class="text-[11px] text-gray-400 mt-1.5">${escapeHtml(r.name || 'Client')}${samples ? ' · sample' : ''}</figcaption>
+    </figure>`;
+  }).join('');
+}
+
+function clampStars(v) {
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? Math.min(5, Math.max(1, n)) : 5;
+}
+
+// "Name | 5 | Review" lines from the manager portal <-> review objects.
+export function reviewsToText(reviews) {
+  return (reviews || []).map(r => `${r.name || ''} | ${clampStars(r.stars)} | ${r.text || ''}`).join('\n');
+}
+export function textToReviews(text) {
+  return String(text || '').split('\n').map(line => line.trim()).filter(Boolean).map(line => {
+    const parts = line.split('|').map(p => p.trim());
+    if (parts.length === 1) return { name: 'Client', stars: 5, text: parts[0] };
+    if (parts.length === 2) return { name: parts[0], stars: 5, text: parts[1] };
+    return { name: parts[0], stars: clampStars(parts[1]), text: parts.slice(2).join(' | ') };
+  }).filter(r => r.text);
 }
 
 export function switchTab(tab) {

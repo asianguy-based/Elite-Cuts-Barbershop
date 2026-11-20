@@ -15,6 +15,15 @@ export const DEFAULT_CONFIG = {
   paymentLinkUrl: '',
   apiBaseUrl: 'https://elite-cuts-api.voxlibera.workers.dev',
   requireDeposit: false,
+  // Client reviews shown on the home screen. While reviewsAreSamples is true the app labels them
+  // "Sample reviews", so a demo never passes made-up quotes off as real ones. A shop swaps in its
+  // own reviews from the manager portal and turns the label off.
+  reviewsAreSamples: true,
+  reviews: [
+    { name: 'Sample Client A.', stars: 5, text: 'Booked my fade from my phone in under a minute and walked straight into the chair.' },
+    { name: 'Sample Client B.', stars: 5, text: 'Love the stamp card. My 10th cut was on the house.' },
+    { name: 'Sample Client C.', stars: 5, text: 'Picked my barber, picked a time, done. No phone tag.' }
+  ],
   services: [
     { id: 'srv-1', name: 'The Executive Cut & Style', price: 45, duration: 45, category: 'Hair', desc: 'Precision scissor or skin fade, hot lather neck shave & invigorating wash.' },
     { id: 'srv-2', name: 'Cut + Beard Sculpt & Hot Towel', price: 65, duration: 60, category: 'Combo', desc: 'Full bespoke haircut paired with straight-razor beard line-up and essential oils.' },

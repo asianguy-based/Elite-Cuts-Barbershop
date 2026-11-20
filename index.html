@@ -92,8 +92,8 @@
 
       <div class="grid grid-cols-3 gap-2.5 text-center">
         <div class="glass-card rounded-xl p-3">
-          <div class="text-accent font-bold text-base"><i class="fa-solid fa-star text-xs mr-1"></i>4.9</div>
-          <div class="text-[11px] text-gray-400">640+ Reviews</div>
+          <div class="text-accent font-bold text-base"><i class="fa-solid fa-star text-xs mr-1"></i><span id="statReviewScore">5.0</span></div>
+          <div id="statReviewLabel" class="text-[11px] text-gray-400">Sample Reviews</div>
         </div>
         <div class="glass-card rounded-xl p-3">
           <div class="text-accent font-bold text-base" id="statBarberCount">3 Chairs</div>
@@ -119,6 +119,15 @@
           <span class="text-[11px] text-gray-400">Tap to book directly</span>
         </div>
         <div id="homeBarbersList" class="flex gap-3 overflow-x-auto hide-scrollbar pb-2"></div>
+      </div>
+
+      <!-- CLIENT REVIEWS: from shopConfig.reviews; labeled "Sample reviews" until the shop adds its own -->
+      <div id="homeReviewsSection" class="hidden">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-brand text-sm font-bold uppercase tracking-wider text-white">What Clients Say</h3>
+          <span id="reviewsSampleBadge" class="hidden text-[10px] px-2 py-0.5 rounded bg-white/10 text-gray-300 font-semibold uppercase tracking-wider">Sample reviews</span>
+        </div>
+        <div id="homeReviewsList" class="space-y-2.5"></div>
       </div>
 
       <div class="glass-card rounded-2xl p-4 space-y-3">
@@ -471,6 +480,13 @@
           <div>
             <label class="block text-[11px] text-gray-400 mb-1">API URL (Cloudflare Worker) — leave blank for demo mode</label>
             <input type="url" id="cfgApiBaseUrl" placeholder="https://elite-cuts-api.your-subdomain.workers.dev" class="w-full rounded-lg bg-primary border border-white/15 px-3 py-1.5 text-xs text-white" />
+          </div>
+          <div>
+            <label for="cfgReviews" class="block text-[11px] text-gray-400 mb-1">Client Reviews — one per line: Name | Stars (1–5) | Review</label>
+            <textarea id="cfgReviews" rows="4" placeholder="Jordan P. | 5 | Best fade in town, booked in seconds." class="w-full rounded-lg bg-primary border border-white/15 px-3 py-1.5 text-xs text-white"></textarea>
+            <label class="mt-1.5 flex items-center gap-2 text-[11px] text-gray-400">
+              <input type="checkbox" id="cfgReviewsAreSamples" class="accent-[#d4af37]" /> Label these as sample reviews (leave on until they're real)
+            </label>
           </div>
           <button onclick="saveWhiteLabelConfig()" class="w-full py-2.5 rounded-xl gold-gradient text-[#1a1a2e] font-bold text-xs">
             Apply Settings
