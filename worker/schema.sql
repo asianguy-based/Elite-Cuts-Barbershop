@@ -73,3 +73,18 @@ CREATE TABLE IF NOT EXISTS login_attempts (
   locked_until  TEXT,
   updated_at    TEXT NOT NULL
 );
+
+-- Manager logins: a random token per login. Only its SHA-256 hash is stored; logout deletes the row.
+CREATE TABLE IF NOT EXISTS manager_sessions (
+  token_hash  TEXT PRIMARY KEY,
+  expires_at  TEXT NOT NULL,
+  created_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS manager_sessions_by_expiry ON manager_sessions (expires_at);
+
+-- Fixed-window request counters (bookings, loyalty lookups, "running late", shop-wide failed logins).
+CREATE TABLE IF NOT EXISTS rate_limits (
+  bucket        TEXT PRIMARY KEY,
+  window_start  TEXT NOT NULL,
+  count         INTEGER NOT NULL DEFAULT 0
+);

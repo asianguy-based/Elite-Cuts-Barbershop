@@ -10,7 +10,8 @@
  *   POST  /api/bookings                                      -> 201 { booking } | 409 slot taken
  *   POST  /api/bookings/late   { refCode, phone, minutes }   -> { booking }      (new, used by the chat)
  *   GET   /api/loyalty?phone=...                             -> { points, stamps, history }
- *   POST  /api/manager/login   { pin }                       -> { token, validFor }
+ *   POST  /api/manager/login   { pin }                       -> { token, expiresAt }
+ *   POST  /api/manager/logout                                -> { ok }                   (X-Manager-Token)
  *   GET   /api/manager/bookings?from&to                      -> { bookings, from, to }   (X-Manager-Token)
  *   PATCH /api/manager/bookings/:id { status }               -> { booking }              (X-Manager-Token)
  *   GET   /api/manager/loyalty.csv                           -> text/csv                 (X-Manager-Token)
@@ -27,10 +28,16 @@
 
 const STATUSES = ['Confirmed', 'Deposit Unpaid', 'Paid', 'Completed', 'Cancelled', 'No-Show'];
 const REQUIRED = ['services', 'barberId', 'barberName', 'date', 'time', 'clientName', 'clientPhone', 'paymentMode'];
-const BOOKING_POINTS = 100;   // pay-at-chair bookings earn on booking
+const BOOKING_POINTS = 100;   // pay-at-chair bookings earn when the manager marks the visit Completed
 const DEPOSIT_POINTS = 150;   // deposit bookings earn when Stripe (or the manager) marks them paid
 const LOGIN_MAX_FAILS = 5;     // wrong manager PINs from one IP before a lockout
 const LOGIN_LOCK_MINUTES = 15;
+const LOGIN_GLOBAL_MAX_FAILS = 100; // wrong PINs from ALL addresses per hour before logins pause (stops IP-rotation guessing)
+const SESSION_HOURS = 12;          // a manager login lasts this long, or until logout
+const BOOKINGS_PER_HOUR = 10;      // new bookings per client address per hour
+const LOOKUPS_PER_HOUR = 30;       // loyalty lookups per client address per hour
+const LATE_PER_HOUR = 10;          // "running late" calls per client address per hour
+const BOOK_AHEAD_DAYS = 120;       // furthest date a client can book
 const enc = new TextEncoder();
 
 // ---------- small helpers (exported for unit tests) ----------
@@ -55,13 +62,46 @@ export async function hmacHex(secret, message) {
   return hex(await crypto.subtle.sign('HMAC', key, enc.encode(message)));
 }
 
-const managerToken = (env, day = today()) => hmacHex(env.MANAGER_PIN, `manager:${day}`);
+export const sha256Hex = async (s) => hex(await crypto.subtle.digest('SHA-256', enc.encode(s)));
+const randomToken = () => hex(crypto.getRandomValues(new Uint8Array(32)));
 
+/**
+ * Manager sessions are random tokens. Only their SHA-256 hash is stored, each one expires after
+ * SESSION_HOURS and logout deletes it. (The old token was derived from the PIN, so one leaked
+ * token let anyone recover a short PIN offline and mint tokens for any future day.)
+ */
 async function requireManager(req, env) {
-  if (!env.MANAGER_PIN) return json({ error: 'MANAGER_PIN secret not configured' }, 500);
   const sent = req.headers.get('X-Manager-Token') || '';
-  if (!sent || !timingSafeEqual(sent, await managerToken(env))) return json({ error: 'Unauthorized' }, 401);
+  if (!/^[0-9a-f]{64}$/.test(sent)) return json({ error: 'Unauthorized' }, 401);
+  const row = await env.DB.prepare('SELECT expires_at FROM manager_sessions WHERE token_hash = ?').bind(await sha256Hex(sent)).first();
+  if (!row || row.expires_at <= nowIso()) return json({ error: 'Unauthorized' }, 401);
   return null;
+}
+
+/** Address used for limits. IPv6 users can rotate addresses inside their /64, so the whole /64 counts as one. */
+export function clientKey(req) {
+  const ip = req.headers.get('CF-Connecting-IP') || 'unknown';
+  if (!ip.includes(':')) return ip;
+  const full = ip.includes('::')
+    ? (() => { const [a, b] = ip.split('::'); const h = a ? a.split(':') : [], t = b ? b.split(':') : []; return [...h, ...Array(8 - h.length - t.length).fill('0'), ...t]; })()
+    : ip.split(':');
+  return full.slice(0, 4).map((x) => x.toLowerCase().replace(/^0+(?=.)/, '')).join(':') + '::/64';
+}
+
+/** Fixed-window counter in D1. Returns null when allowed, or a 429 response. */
+async function rateLimit(env, bucket, limit, windowSec) {
+  const now = nowIso();
+  const windowStart = new Date(Date.now() - windowSec * 1000).toISOString();
+  const row = await env.DB.prepare(
+    `INSERT INTO rate_limits (bucket, window_start, count) VALUES (?1, ?2, 1)
+     ON CONFLICT(bucket) DO UPDATE SET
+       count = CASE WHEN window_start <= ?3 THEN 1 ELSE count + 1 END,
+       window_start = CASE WHEN window_start <= ?3 THEN ?2 ELSE window_start END
+     RETURNING count, window_start`
+  ).bind(bucket, now, windowStart).first();
+  if (!row || row.count <= limit) return null;
+  const retry = Math.max(1, Math.ceil((Date.parse(row.window_start) + windowSec * 1000 - Date.now()) / 1000));
+  return json({ error: 'Too many requests. Please try again later.' }, 429, { 'Retry-After': String(retry) });
 }
 
 async function readBody(req) {
@@ -156,12 +196,22 @@ async function getSlots(url, env) {
   return json({ booked: results.map((r) => r.time) });
 }
 
+const TIME_SLOT = /^(0[1-9]|1[0-2]):[0-5]\d (AM|PM)$/;   // the PWA's slot labels, e.g. "09:00 AM"
+const BARBER_ID = /^[A-Za-z0-9_-]{1,40}$/;
+const addDays = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+
 export function validateBooking(body) {
   if (!body || typeof body !== 'object') return 'Invalid JSON';
   const missing = REQUIRED.filter((k) => body[k] === undefined || body[k] === null || body[k] === '');
   if (missing.length) return `Missing fields: ${missing.join(', ')}`;
-  if (!Array.isArray(body.services) || !body.services.length) return 'services must be a non-empty array';
+  if (!Array.isArray(body.services) || !body.services.length || body.services.length > 10) return 'services must be a list of 1 to 10 items';
+  if (body.services.some((x) => typeof x !== 'string' || !x.trim() || x.length > 100)) return 'each service must be text up to 100 characters';
   if (!isDate(body.date)) return 'date must be YYYY-MM-DD';
+  // One day of slack before today covers time zones west of UTC.
+  if (body.date < addDays(-1) || body.date > addDays(BOOK_AHEAD_DAYS)) return `date must be between today and ${BOOK_AHEAD_DAYS} days ahead`;
+  if (!TIME_SLOT.test(String(body.time))) return 'time must look like "09:00 AM"';
+  if (!BARBER_ID.test(String(body.barberId))) return 'barberId is invalid';
+  if (String(body.barberName).length > 80) return 'barberName is too long';
   if (!['deposit', 'chair'].includes(body.paymentMode)) return 'paymentMode must be deposit or chair';
   if (!normalizePhone(body.clientPhone)) return 'clientPhone must contain digits';
   return null;
@@ -171,6 +221,8 @@ async function createBooking(req, env) {
   const body = await readBody(req);
   const problem = validateBooking(body);
   if (problem) return json({ error: problem }, 400);
+  const limited = await rateLimit(env, `book:${clientKey(req)}`, BOOKINGS_PER_HOUR, 3600);
+  if (limited) return limited;
 
   const isDeposit = body.paymentMode === 'deposit';
   const phone = normalizePhone(body.clientPhone);
@@ -178,8 +230,10 @@ async function createBooking(req, env) {
   const clientPhone = String(body.clientPhone).slice(0, 40);
   const id = `${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 8)}`;
 
-  // One transaction: customer upsert + booking + (pay-at-chair) loyalty award.
-  // If the slot is taken, the unique index fails the INSERT and the whole batch rolls back.
+  // One transaction: customer upsert + booking. If the slot is taken, the unique index fails the
+  // INSERT and the whole batch rolls back. Points are NOT awarded here: pay-at-chair bookings earn
+  // when the manager marks the visit Completed, deposits when the deposit is paid, so a script
+  // booking fake appointments earns nothing.
   for (let attempt = 0; attempt < 5; attempt++) {
     const refCode = 'EC-' + String(Math.floor(1000 + Math.random() * 9000)) + (attempt > 2 ? String(attempt) : '');
     const stmts = [
@@ -202,11 +256,6 @@ async function createBooking(req, env) {
         isDeposit ? 'Deposit Unpaid' : 'Confirmed', nowIso()
       )
     ];
-    if (!isDeposit) {
-      stmts.push(env.DB.prepare(
-        `INSERT INTO loyalty_events (phone, booking_id, kind, points) VALUES (?1, ?2, 'booking', ?3)`
-      ).bind(phone, id, BOOKING_POINTS));
-    }
     try {
       await env.DB.batch(stmts);
       return json({ booking: await getBooking(env, id) }, 201);
@@ -220,6 +269,8 @@ async function createBooking(req, env) {
 }
 
 async function markLate(req, env) {
+  const limited = await rateLimit(env, `late:${clientKey(req)}`, LATE_PER_HOUR, 3600);
+  if (limited) return limited;
   const body = await readBody(req);
   const minutes = Math.round(Number(body && body.minutes));
   if (!body || !body.refCode || !normalizePhone(body.phone) || !(minutes >= 1 && minutes <= 90)) {
@@ -238,15 +289,23 @@ async function markLate(req, env) {
 async function managerLogin(req, env) {
   if (!env.MANAGER_PIN) return json({ error: 'MANAGER_PIN secret not configured' }, 500);
   // Brute-force guard: a 4-digit PIN must not be guessable by scripting this endpoint.
-  const ip = req.headers.get('CF-Connecting-IP') || 'unknown';
+  const ip = clientKey(req);
   const now = nowIso();
   const row = await env.DB.prepare('SELECT fails, locked_until FROM login_attempts WHERE ip = ?').bind(ip).first();
   if (row && row.locked_until && row.locked_until > now) {
     const retry = Math.max(1, Math.ceil((Date.parse(row.locked_until) - Date.now()) / 1000));
     return json({ error: `Too many attempts. Try again in ${Math.ceil(retry / 60)} minutes.` }, 429, { 'Retry-After': String(retry) });
   }
+  // Shop-wide cap: someone rotating through many addresses still gets only LOGIN_GLOBAL_MAX_FAILS guesses an hour.
+  const hourAgo = new Date(Date.now() - 3600000).toISOString();
+  const global = await env.DB.prepare('SELECT count, window_start FROM rate_limits WHERE bucket = ?').bind('login-fail:all').first();
+  if (global && global.window_start > hourAgo && global.count >= LOGIN_GLOBAL_MAX_FAILS) {
+    const retry = Math.max(1, Math.ceil((Date.parse(global.window_start) + 3600000 - Date.now()) / 1000));
+    return json({ error: 'Too many failed logins. Try again later.' }, 429, { 'Retry-After': String(retry) });
+  }
   const body = await readBody(req);
   if (!body || !timingSafeEqual(body.pin || '', env.MANAGER_PIN)) {
+    await rateLimit(env, 'login-fail:all', LOGIN_GLOBAL_MAX_FAILS, 3600);
     const fails = (row && (!row.locked_until || row.locked_until <= now) ? row.fails : 0) + 1;
     const lockedUntil = fails >= LOGIN_MAX_FAILS ? new Date(Date.now() + LOGIN_LOCK_MINUTES * 60000).toISOString() : null;
     await env.DB.prepare(
@@ -256,7 +315,20 @@ async function managerLogin(req, env) {
     return json({ error: 'Invalid PIN' }, 401);
   }
   if (row) await env.DB.prepare('DELETE FROM login_attempts WHERE ip = ?').bind(ip).run();
-  return json({ token: await managerToken(env), validFor: today() });
+  const token = randomToken();
+  const expiresAt = new Date(Date.now() + SESSION_HOURS * 3600000).toISOString();
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM manager_sessions WHERE expires_at <= ?').bind(now), // tidy up old sessions
+    env.DB.prepare('INSERT INTO manager_sessions (token_hash, expires_at, created_at) VALUES (?1, ?2, ?3)')
+      .bind(await sha256Hex(token), expiresAt, now)
+  ]);
+  return json({ token, expiresAt });
+}
+
+async function managerLogout(req, env) {
+  const sent = req.headers.get('X-Manager-Token') || '';
+  await env.DB.prepare('DELETE FROM manager_sessions WHERE token_hash = ?').bind(await sha256Hex(sent)).run();
+  return json({ ok: true });
 }
 
 const rangeFrom = (url) => ({
@@ -279,7 +351,15 @@ async function managerPatchBooking(req, env, id) {
   if (!booking) return json({ error: 'Booking not found' }, 404);
   if (body.status === 'Paid' && booking.paymentMode === 'deposit') await markPaid(env, id);
   try {
-    await env.DB.prepare('UPDATE bookings SET status = ?1, updated_at = ?2 WHERE id = ?3').bind(body.status, nowIso(), id).run();
+    const stmts = [env.DB.prepare('UPDATE bookings SET status = ?1, updated_at = ?2 WHERE id = ?3').bind(body.status, nowIso(), id)];
+    if (body.status === 'Completed' && booking.paymentMode === 'chair') {
+      // Pay-at-chair visits earn their points once the barber confirms the visit happened (once per booking).
+      stmts.push(env.DB.prepare(
+        `INSERT OR IGNORE INTO loyalty_events (phone, booking_id, kind, points)
+         SELECT customer_phone, id, 'booking', ?2 FROM bookings WHERE id = ?1`
+      ).bind(id, BOOKING_POINTS));
+    }
+    await env.DB.batch(stmts);
   } catch (err) {
     // e.g. un-cancelling a booking whose slot has since been re-booked
     if (isSlotConflict(err)) return json({ error: 'That slot has been re-booked by someone else' }, 409);
@@ -296,7 +376,8 @@ const LOYALTY_SQL = `
   FROM customers c LEFT JOIN loyalty_events e ON e.phone = c.phone`;
 
 async function managerLoyaltyCsv(env) {
-  const csvCell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  // A cell starting with = or @ (or + / - followed by letters) would run as a formula in Excel/Sheets, so it gets a ' prefix.
+  const csvCell = (v) => { let t = String(v ?? ''); if (/^[=@\t\r]/.test(t) || /^[+-].*[A-Za-z]/.test(t)) t = "'" + t; return `"${t.replace(/"/g, '""')}"`; };
   const { results } = await env.DB.prepare(`${LOYALTY_SQL} GROUP BY c.phone ORDER BY points DESC`).all();
   const lines = ['name,phone,points,stamps,lastVisit'];
   for (const r of results) lines.push([csvCell(r.name), csvCell(r.phone_raw), r.points, r.stamps, csvCell(r.last_visit)].join(','));
@@ -319,9 +400,11 @@ async function managerReport(url, env) {
   return json({ rows: results, from, to });
 }
 
-async function getLoyalty(url, env) {
+async function getLoyalty(req, url, env) {
   const phone = normalizePhone(url.searchParams.get('phone'));
   if (!phone) return json({ error: 'phone is required' }, 400);
+  const limited = await rateLimit(env, `loyalty:${clientKey(req)}`, LOOKUPS_PER_HOUR, 3600);
+  if (limited) return limited;
   const rec = await env.DB.prepare(`${LOYALTY_SQL} WHERE c.phone = ? GROUP BY c.phone`).bind(phone).first();
   const { results } = await env.DB.prepare(
     `SELECT date, time, services, barber_name, ref_code, status FROM bookings
@@ -390,8 +473,9 @@ const routes = [
   ['GET', /^\/api\/slots$/, (req, env, url) => getSlots(url, env)],
   ['POST', /^\/api\/bookings$/, (req, env) => createBooking(req, env)],
   ['POST', /^\/api\/bookings\/late$/, (req, env) => markLate(req, env)],
-  ['GET', /^\/api\/loyalty$/, (req, env, url) => getLoyalty(url, env)],
+  ['GET', /^\/api\/loyalty$/, (req, env, url) => getLoyalty(req, url, env)],
   ['POST', /^\/api\/manager\/login$/, (req, env) => managerLogin(req, env)],
+  ['POST', /^\/api\/manager\/logout$/, (req, env) => managerLogout(req, env), true],
   ['GET', /^\/api\/manager\/bookings$/, (req, env, url) => managerBookings(url, env), true],
   ['PATCH', /^\/api\/manager\/bookings\/([^/]+)$/, (req, env, url, m) => managerPatchBooking(req, env, decodeURIComponent(m[1])), true],
   ['GET', /^\/api\/manager\/loyalty\.csv$/, (req, env) => managerLoyaltyCsv(env), true],

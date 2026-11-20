@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
-import worker, { verifyStripeSignature, hmacHex, cors } from '../src/index.js';
+import worker, { verifyStripeSignature, hmacHex, cors, clientKey } from '../src/index.js';
 
 const schema = readFileSync(new URL('../schema.sql', import.meta.url), 'utf8');
 
@@ -33,6 +33,8 @@ function makeD1() {
 }
 
 const ORIGIN = 'http://localhost:8203'; // test-only origin
+const day = (n) => new Date(Date.now() + n * 86400000).toISOString().slice(0, 10);
+const D = day(10); // a valid booking date relative to today, so the tests don't age out
 const newEnv = () => ({ DB: makeD1(), MANAGER_PIN: '4321', STRIPE_WEBHOOK_SECRET: 'whsec_test', ALLOWED_ORIGINS: `https://elite-cuts.pages.dev,${ORIGIN}` });
 const call = async (env, method, path, body, headers = {}) => {
   const res = await worker.fetch(new Request('https://api.test' + path, {
@@ -44,7 +46,7 @@ const call = async (env, method, path, body, headers = {}) => {
 };
 const booking = (over = {}) => ({
   services: ['The Executive Cut & Style'], totalCost: 45, totalMin: 45,
-  barberId: 'brb-1', barberName: 'Marcus Vance', date: '2026-12-01', time: '11:00 AM',
+  barberId: 'brb-1', barberName: 'Marcus Vance', date: D, time: '11:00 AM',
   clientName: 'Jordan Lee', clientPhone: '(555) 010-2030', paymentMode: 'chair', ...over
 });
 
@@ -55,12 +57,17 @@ test('booking, slots and loyalty round trip', async () => {
   assert.match(r.data.booking.refCode, /^EC-\d{4}/);
   assert.deepEqual(r.data.booking.services, ['The Executive Cut & Style']);
   assert.equal(r.data.booking.status, 'Confirmed');
-  const s = await call(env, 'GET', '/api/slots?date=2026-12-01&barberId=brb-1');
+  const s = await call(env, 'GET', `/api/slots?date=${D}&barberId=brb-1`);
   assert.deepEqual(s.data.booked, ['11:00 AM']);
   const l = await call(env, 'GET', '/api/loyalty?phone=5550102030');
-  assert.equal(l.data.points, 100);
-  assert.equal(l.data.stamps, 1);
+  assert.equal(l.data.points, 0, 'no points until the visit is completed');
   assert.equal(l.data.history[0].refCode, r.data.booking.refCode);
+  const H = { 'X-Manager-Token': (await call(env, 'POST', '/api/manager/login', { pin: '4321' })).data.token };
+  assert.equal((await call(env, 'PATCH', `/api/manager/bookings/${r.data.booking.id}`, { status: 'Completed' }, H)).status, 200);
+  assert.equal((await call(env, 'PATCH', `/api/manager/bookings/${r.data.booking.id}`, { status: 'Completed' }, H)).status, 200);
+  const l2 = await call(env, 'GET', '/api/loyalty?phone=5550102030');
+  assert.equal(l2.data.points, 100, 'completed once, awarded once');
+  assert.equal(l2.data.stamps, 1);
 });
 
 test('double booking is rejected with 409 and leaves no partial rows', async () => {
@@ -94,14 +101,15 @@ test('cancelled slot can be re-booked; un-cancel then conflicts', async () => {
 
 test('manager endpoints need a token; list, csv, report', async () => {
   const env = newEnv();
-  await call(env, 'POST', '/api/bookings', booking());
+  const b = (await call(env, 'POST', '/api/bookings', booking())).data.booking;
   assert.equal((await call(env, 'GET', '/api/manager/bookings?from=2026-01-01')).status, 401);
   assert.equal((await call(env, 'POST', '/api/manager/login', { pin: '0000' })).status, 401);
   const H = { 'X-Manager-Token': (await call(env, 'POST', '/api/manager/login', { pin: '4321' })).data.token };
   const list = await call(env, 'GET', '/api/manager/bookings?from=2026-01-01', undefined, H);
   assert.equal(list.data.bookings.length, 1);
+  await call(env, 'PATCH', `/api/manager/bookings/${b.id}`, { status: 'Completed' }, H);
   const csv = await call(env, 'GET', '/api/manager/loyalty.csv', undefined, H);
-  assert.match(csv.data, /^name,phone,points,stamps,lastVisit\n"Jordan Lee","\(555\) 010-2030",100,1,"2026-12-01"\n$/);
+  assert.equal(csv.data, `name,phone,points,stamps,lastVisit\n"Jordan Lee","(555) 010-2030",100,1,"${D}"\n`);
   const rep = await call(env, 'GET', '/api/manager/report?from=2026-01-01', undefined, H);
   assert.equal(rep.data.rows[0].revenue, 45);
 });
@@ -152,7 +160,7 @@ test('validation errors', async () => {
 // ---- Hardening carried over from the KV worker ----
 test('CORS: wildcard entry matches Pages preview subdomains only', async () => {
   const env = { ...newEnv(), ALLOWED_ORIGINS: 'https://elite-cuts-4qn.pages.dev,https://*.elite-cuts-4qn.pages.dev' };
-  const ok = async (origin) => (await call(env, 'GET', '/api/slots?date=2026-12-01&barberId=brb-1', undefined, { Origin: origin }));
+  const ok = async (origin) => (await call(env, 'GET', `/api/slots?date=${D}&barberId=brb-1`, undefined, { Origin: origin }));
   assert.equal((await ok('https://elite-cuts-4qn.pages.dev')).headers.get('access-control-allow-origin'), 'https://elite-cuts-4qn.pages.dev');
   assert.equal((await ok('https://a1481edc.elite-cuts-4qn.pages.dev')).headers.get('access-control-allow-origin'), 'https://a1481edc.elite-cuts-4qn.pages.dev');
   assert.equal((await ok('https://evilelite-cuts-4qn.pages.dev')).status, 403);
@@ -197,4 +205,88 @@ test('API root redirects browsers to the booking site', async () => {
   assert.equal(res.headers.get('location'), 'https://elite-cuts-4qn.pages.dev/');
   const withVar = await worker.fetch(new Request('https://api.test/'), { ...env, SITE_URL: 'https://example.test/' });
   assert.equal(withVar.headers.get('location'), 'https://example.test/');
+});
+
+// ---- Security fixes (Nov 2026 review) ----
+test('manager sessions: random tokens, rejected after logout or expiry', async () => {
+  const env = newEnv();
+  const a = (await call(env, 'POST', '/api/manager/login', { pin: '4321' })).data;
+  const b = (await call(env, 'POST', '/api/manager/login', { pin: '4321' })).data;
+  assert.match(a.token, /^[0-9a-f]{64}$/);
+  assert.notEqual(a.token, b.token, 'not derived from the PIN');
+  assert.notEqual(a.token, await hmacHex('4321', `manager:${day(0)}`), 'old PIN-derived token no longer exists');
+  assert.ok(a.expiresAt > new Date().toISOString());
+  const A = { 'X-Manager-Token': a.token }, B = { 'X-Manager-Token': b.token };
+  assert.equal((await call(env, 'GET', '/api/manager/bookings', undefined, A)).status, 200);
+  assert.equal((await call(env, 'GET', '/api/manager/bookings', undefined, { 'X-Manager-Token': await hmacHex('4321', `manager:${day(0)}`) })).status, 401);
+  assert.equal((await call(env, 'POST', '/api/manager/logout', undefined, A)).status, 200);
+  assert.equal((await call(env, 'GET', '/api/manager/bookings', undefined, A)).status, 401, 'logged out');
+  assert.equal((await call(env, 'GET', '/api/manager/bookings', undefined, B)).status, 200, 'other session unaffected');
+  env.DB.raw.exec("UPDATE manager_sessions SET expires_at = '2000-01-01T00:00:00Z'");
+  assert.equal((await call(env, 'GET', '/api/manager/bookings', undefined, B)).status, 401, 'expired');
+  assert.equal(env.DB.raw.prepare('SELECT COUNT(*) n FROM manager_sessions WHERE token_hash = ?').get(a.token)?.n ?? 0, 0, 'raw token never stored');
+});
+
+test('manager PIN: shop-wide cap stops guessing from many addresses', async () => {
+  const env = newEnv();
+  for (let i = 0; i < 100; i++) {
+    await call(env, 'POST', '/api/manager/login', { pin: '0000' }, { 'CF-Connecting-IP': `198.51.${Math.floor(i / 4)}.${i % 4}` });
+  }
+  const r = await call(env, 'POST', '/api/manager/login', { pin: '4321' }, { 'CF-Connecting-IP': '203.0.113.50' });
+  assert.equal(r.status, 429);
+  env.DB.raw.exec("UPDATE rate_limits SET window_start = '2000-01-01T00:00:00Z' WHERE bucket = 'login-fail:all'");
+  assert.equal((await call(env, 'POST', '/api/manager/login', { pin: '4321' }, { 'CF-Connecting-IP': '203.0.113.50' })).status, 200, 'resets after the hour');
+});
+
+test('IPv6 addresses in one /64 count as one client', () => {
+  const k = (ip) => clientKey(new Request('https://x', { headers: { 'CF-Connecting-IP': ip } }));
+  assert.equal(k('2001:db8:1:2::1'), k('2001:0db8:0001:0002:ffff:1:2:3'));
+  assert.notEqual(k('2001:db8:1:2::1'), k('2001:db8:1:3::1'));
+  assert.equal(k('203.0.113.9'), '203.0.113.9');
+});
+
+test('booking input is checked: time, barber, date range, list sizes', async () => {
+  const env = newEnv();
+  const bad = async (over) => (await call(env, 'POST', '/api/bookings', booking(over))).status;
+  assert.equal(await bad({ time: '11:00 AM ' }), 400, 'cannot dodge the one-per-slot rule with spaces');
+  assert.equal(await bad({ time: '<img src=x onerror=alert(1)>' }), 400);
+  assert.equal(await bad({ barberId: 'brb-1"><script>' }), 400);
+  assert.equal(await bad({ barberName: 'x'.repeat(81) }), 400);
+  assert.equal(await bad({ date: day(-5) }), 400, 'past');
+  assert.equal(await bad({ date: day(400) }), 400, 'too far ahead');
+  assert.equal(await bad({ services: Array(11).fill('Cut') }), 400);
+  assert.equal(await bad({ services: [{ evil: true }] }), 400);
+  assert.equal(await bad({}), 201);
+});
+
+test('bookings are rate-limited per address and earn no points by themselves', async () => {
+  const env = newEnv();
+  const ip = { 'CF-Connecting-IP': '203.0.113.77' };
+  const slots = ['09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '01:30 PM', '02:30 PM', '03:30 PM', '04:30 PM', '05:30 PM', '06:30 PM', '07:30 PM'];
+  const codes = [];
+  for (const time of slots) codes.push((await call(env, 'POST', '/api/bookings', booking({ time }), ip)).status);
+  assert.deepEqual(codes.slice(0, 10), Array(10).fill(201));
+  assert.equal(codes[10], 429);
+  const l = await call(env, 'GET', '/api/loyalty?phone=5550102030');
+  assert.equal(l.data.points, 0, '10 fake bookings = 0 points');
+  assert.equal((await call(env, 'POST', '/api/bookings', booking({ time: '07:30 PM' }), { 'CF-Connecting-IP': '203.0.113.78' })).status, 201, 'other addresses unaffected');
+});
+
+test('loyalty lookups and running-late calls are rate-limited', async () => {
+  const env = newEnv();
+  const ip = { 'CF-Connecting-IP': '203.0.113.90' };
+  let last;
+  for (let i = 0; i < 31; i++) last = await call(env, 'GET', `/api/loyalty?phone=55500${String(i).padStart(5, '0')}`, undefined, ip);
+  assert.equal(last.status, 429);
+  for (let i = 0; i < 11; i++) last = await call(env, 'POST', '/api/bookings/late', { refCode: `EC-${1000 + i}`, phone: '5550102030', minutes: 5 }, ip);
+  assert.equal(last.status, 429, 'ref codes cannot be guessed by brute force');
+});
+
+test('loyalty CSV neutralises spreadsheet formulas but keeps phone numbers', async () => {
+  const env = newEnv();
+  const b = (await call(env, 'POST', '/api/bookings', booking({ clientName: '=HYPERLINK("http://x","hi")', clientPhone: '+1 555 010 2030' }))).data.booking;
+  const H = { 'X-Manager-Token': (await call(env, 'POST', '/api/manager/login', { pin: '4321' })).data.token };
+  await call(env, 'PATCH', `/api/manager/bookings/${b.id}`, { status: 'Completed' }, H);
+  const csv = (await call(env, 'GET', '/api/manager/loyalty.csv', undefined, H)).data;
+  assert.match(csv, /\n"'=HYPERLINK\(""http:\/\/x"",""hi""\)","\+1 555 010 2030",100,/);
 });

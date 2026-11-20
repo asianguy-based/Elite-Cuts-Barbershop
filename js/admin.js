@@ -1,4 +1,4 @@
-import { MANAGER_TOKEN_KEY, api, apiConfigured } from './api.js';
+import { MANAGER_TOKEN_KEY, api, apiConfigured, escapeHtml } from './api.js';
 import { refreshNextChair, renderNextChair, resetSlotCaches } from './booking.js';
 import { STORAGE_KEY_CONFIG, saveConfig, shopConfig } from './config.js';
 import { LoyaltyVault, STORAGE_KEY_BOOKINGS, STORAGE_KEY_LOYALTY, bookings, loyaltyDB, normalizePhone, saveBookings, saveLoyaltyDB, setBookings } from './storage.js';
@@ -82,6 +82,15 @@ export function openAdminModal() {
 }
 
 export function closeAdminModal() {
+  // Closing the portal logs the manager out (the server deletes the session), so a shared
+  // shop tablet doesn't stay unlocked.
+  const token = sessionStorage.getItem(MANAGER_TOKEN_KEY);
+  if (token && apiConfigured()) api('/api/manager/logout', { method: 'POST' }).catch(() => {});
+  sessionStorage.removeItem(MANAGER_TOKEN_KEY);
+  remoteBookings = null;
+  document.getElementById('adminPinInput').value = '';
+  document.getElementById('adminContent').classList.add('hidden');
+  document.getElementById('adminPinGate').classList.remove('hidden');
   if (window.location.search.includes('portal=')) {
     window.history.replaceState({}, document.title, window.location.pathname);
   }
@@ -139,13 +148,13 @@ export async function renderAdminQueue() {
   list.innerHTML = rows.map(b => `
     <div class="p-2.5 rounded-xl bg-primary border border-white/10 flex items-center justify-between text-xs">
       <div>
-        <div class="font-bold text-white">${b.clientName} <span class="text-accent">(${b.refCode})</span></div>
-        <div class="text-[11px] text-gray-400">${b.date} ${b.time} • ${b.barberName} • <span class="text-gray-300">${b.status || ''}</span></div>
+        <div class="font-bold text-white">${escapeHtml(b.clientName)} <span class="text-accent">(${escapeHtml(b.refCode)})</span></div>
+        <div class="text-[11px] text-gray-400">${escapeHtml(b.date)} ${escapeHtml(b.time)} • ${escapeHtml(b.barberName)} • <span class="text-gray-300">${escapeHtml(b.status || '')}</span></div>
       </div>
       <div class="flex gap-1">
-        ${apiConfigured() && b.paymentMode === 'deposit' && !b.paid ? `<button onclick="updateBookingStatus('${b.id}', 'Paid')" class="px-2 py-1 rounded bg-accent/20 text-accent text-[10px]">Paid</button>` : ''}
-        <button onclick="updateBookingStatus('${b.id}', 'Completed')" class="px-2 py-1 rounded bg-emerald-500/20 text-emerald-300 text-[10px]">Done</button>
-        <button onclick="updateBookingStatus('${b.id}', 'Cancelled')" class="px-2 py-1 rounded bg-rose-500/20 text-rose-300 text-[10px]">Cancel</button>
+        ${apiConfigured() && b.paymentMode === 'deposit' && !b.paid ? `<button data-id="${escapeHtml(b.id)}" onclick="updateBookingStatus(this.dataset.id, 'Paid')" class="px-2 py-1 rounded bg-accent/20 text-accent text-[10px]">Paid</button>` : ''}
+        <button data-id="${escapeHtml(b.id)}" onclick="updateBookingStatus(this.dataset.id, 'Completed')" class="px-2 py-1 rounded bg-emerald-500/20 text-emerald-300 text-[10px]">Done</button>
+        <button data-id="${escapeHtml(b.id)}" onclick="updateBookingStatus(this.dataset.id, 'Cancelled')" class="px-2 py-1 rounded bg-rose-500/20 text-rose-300 text-[10px]">Cancel</button>
       </div>
     </div>
   `).join('');

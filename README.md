@@ -65,7 +65,7 @@ npx wrangler deploy
 
 Then open the app, go to **Manager Studio → Settings → API URL**, paste the Worker URL (e.g. `https://elite-cuts-api.<you>.workers.dev`), and click *Apply Settings*. Leaving the field blank keeps demo mode. `ALLOWED_ORIGIN` in `wrangler.toml` is a comma-separated list of browser origins allowed to call the API; `https://*.your-project.pages.dev` also covers Pages preview deploys. Add your custom domain there if you add one (`*` allows any site).
 
-Endpoints: `GET /api/health`, `GET /api/slots?date=&barberId=`, `POST /api/bookings`, `GET /api/loyalty?phone=`, `POST /api/manager/login`, `GET /api/manager/bookings?from=&to=`, `PATCH /api/manager/bookings/:id`, `GET /api/manager/loyalty.csv`, `GET /api/manager/report?from=&to=` (bookings, no-shows and revenue per barber per day), `POST /api/bookings/late` (client says they are running late), `POST /api/webhook/stripe`. Manager routes require the `X-Manager-Token` header returned by login (valid for the current UTC day).
+Endpoints: `GET /api/health`, `GET /api/slots?date=&barberId=`, `POST /api/bookings`, `GET /api/loyalty?phone=`, `POST /api/manager/login`, `POST /api/manager/logout`, `GET /api/manager/bookings?from=&to=`, `PATCH /api/manager/bookings/:id`, `GET /api/manager/loyalty.csv`, `GET /api/manager/report?from=&to=` (bookings, no-shows and revenue per barber per day), `POST /api/bookings/late` (client says they are running late), `POST /api/webhook/stripe`. Manager routes require the `X-Manager-Token` header returned by login. Each login gets its own random token that lasts 12 hours or until logout (closing the Manager Studio logs out); only a hash of it is stored.
 
 **Stripe deposits:** the app opens your Payment Link with `client_reference_id=<refCode>`. Point a Stripe webhook for `checkout.session.completed` at `<worker-url>/api/webhook/stripe` and the booking is marked Paid and awarded its 150 pts automatically. Without the webhook, the manager can press **Paid** in the queue.
 
@@ -75,7 +75,11 @@ Endpoints: `GET /api/health`, `GET /api/slots?date=&barberId=`, `POST /api/booki
 
 **Stripe webhook security:** the webhook never trusts an unauthenticated "paid" message. With `STRIPE_WEBHOOK_SECRET` set it checks Stripe's signature; without it, but with `STRIPE_SECRET_KEY` set, it asks Stripe directly whether the checkout session was paid; with neither, it refuses and the manager marks deposits paid by hand.
 
-**Manager PIN lockout:** after 5 wrong PINs from one IP address, login is locked for 15 minutes.
+**Manager PIN lockout:** after 5 wrong PINs from one IP address (one IPv6 /64), login is locked for 15 minutes. After 100 wrong PINs shop-wide in an hour, all logins pause until the hour is up, so guessing from many addresses doesn't work either. Use a PIN of 8 or more digits.
+
+**Abuse limits:** each address can make 10 bookings, 30 loyalty lookups and 10 "running late" calls an hour. Bookings must use a real slot label (`09:00 AM`), a simple barber id and a date between today and 120 days out. Pay-at-chair points (100) are awarded when the manager marks the visit **Done**, not at booking, so fake bookings earn nothing.
+
+**Upgrading an existing shop:** re-run `npx wrangler d1 execute elite-cuts --remote --file=schema.sql` before deploying this version (it adds the `manager_sessions` and `rate_limits` tables; existing data is untouched).
 
 **Tests:** `cd worker && npm test` runs the Worker end to end against the real `schema.sql` using Node 22+'s built-in SQLite (no Cloudflare account needed).
 

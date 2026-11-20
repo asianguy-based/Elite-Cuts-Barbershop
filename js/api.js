@@ -1,5 +1,11 @@
 import { shopConfig } from './config.js';
 
+// Anything that came from a booking (names, times, notes...) was typed by a stranger. Escape it before
+// it goes into innerHTML, or a booking named with HTML in it runs code in the manager's browser.
+export function escapeHtml(v) {
+  return String(v ?? '').replace(/[&<>"'`]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;', '`': '&#96;' }[c]));
+}
+
 // BACKEND API (Cloudflare Worker). Returns null when no apiBaseUrl is set = demo/localStorage mode.
 export const MANAGER_TOKEN_KEY = 'EC_MANAGER_TOKEN';
 export function apiConfigured() {
