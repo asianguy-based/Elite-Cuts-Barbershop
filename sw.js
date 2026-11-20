@@ -1,4 +1,7 @@
-const CACHE_NAME = 'elite-cuts-h5-v1.3.4';
+// RELEASE: bump CACHE_NAME on every deploy and say what changed in RELEASE_NOTES. Installed apps
+// show it in a popup ("UPDATE: <notes>  [OK]") and switch to the new version when OK is tapped.
+const CACHE_NAME = 'elite-cuts-h5-v1.4.0';
+const RELEASE_NOTES = 'You will now see a message like this whenever the app gets a new version.';
 // Every same-origin file the app needs to boot offline. Add new css/js files here and bump CACHE_NAME.
 // Not './index.html': Cloudflare Pages 308-redirects it to './', and a cached redirect
 // cannot be replayed for a page load, which broke the installed app when offline.
@@ -18,17 +21,31 @@ const APP_SHELL = [
   './js/booking.js',
   './js/loyalty.js',
   './js/admin.js',
-  './js/ui.js'
+  './js/ui.js',
+  './js/update.js'
 ];
 // Cross-origin CDN assets (Tailwind, Font Awesome, Google Fonts) are NOT pre-cached:
 // cache.addAll() rejects on any opaque/failed response. They get cached on first fetch below.
 
 // 1. Install & Pre-cache App Shell
+// cache: 'reload' skips the browser's HTTP cache, so a new version never pre-caches old files.
+// No skipWaiting() here: a new version waits until the user taps Update (js/update.js), so the
+// page never runs half old, half new code. A first install has no old version and starts at once.
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL.map((url) => new Request(url, { cache: 'reload' }))))
   );
-  self.skipWaiting();
+});
+
+// The Update button asks the waiting version to take over; the page then reloads on controllerchange.
+// The page asks a waiting version what changed (GET_RELEASE) for the popup text, and OK asks it to
+// take over (SKIP_WAITING); the page then reloads on controllerchange.
+self.addEventListener('message', (event) => {
+  const type = event.data && event.data.type;
+  if (type === 'SKIP_WAITING') self.skipWaiting();
+  if (type === 'GET_RELEASE' && event.ports && event.ports[0]) {
+    event.ports[0].postMessage({ version: CACHE_NAME, notes: RELEASE_NOTES });
+  }
 });
 
 // 2. Activate & Purge Old Caches
