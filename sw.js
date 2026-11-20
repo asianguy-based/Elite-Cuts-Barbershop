@@ -1,8 +1,24 @@
-const CACHE_NAME = 'elite-cuts-h5-v1.1.0';
+const CACHE_NAME = 'elite-cuts-h5-v1.3.1';
+// Every same-origin file the app needs to boot offline. Add new css/js files here and bump CACHE_NAME.
+// Not './index.html': Cloudflare Pages 308-redirects it to './', and a cached redirect
+// cannot be replayed for a page load, which broke the installed app when offline.
 const APP_SHELL = [
   './',
-  './index.html',
-  './manifest.json'
+  './manifest.json',
+  './icons/icon-192.png',
+  './icons/icon-512.png',
+  './icons/icon-maskable-512.png',
+  './icons/apple-touch-icon.png',
+  './icons/favicon-32.png',
+  './css/app.css',
+  './js/main.js',
+  './js/config.js',
+  './js/api.js',
+  './js/storage.js',
+  './js/booking.js',
+  './js/loyalty.js',
+  './js/admin.js',
+  './js/ui.js'
 ];
 // Cross-origin CDN assets (Tailwind, Font Awesome, Google Fonts) are NOT pre-cached:
 // cache.addAll() rejects on any opaque/failed response. They get cached on first fetch below.
@@ -40,6 +56,24 @@ self.addEventListener('fetch', (event) => {
 
   // Always bypass cache for non-GET requests
   if (request.method !== 'GET') {
+    return;
+  }
+
+  // Page loads (opening the app, ?tab=book shortcuts, ?portal=admin): network first so a new
+  // deploy shows up right away, falling back to the cached shell when offline. Every page URL is
+  // the same single-page app, so any of them can be answered with the cached './'.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
+        .then((res) => {
+          if (res && res.ok && !res.redirected && new URL(res.url).pathname === new URL('./', self.registration.scope).pathname) {
+            const copy = res.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put('./', copy));
+          }
+          return res;
+        })
+        .catch(() => caches.match('./', { ignoreSearch: true }))
+    );
     return;
   }
 
