@@ -2,7 +2,7 @@ import { MANAGER_TOKEN_KEY, api, apiConfigured, escapeHtml } from './api.js';
 import { refreshNextChair, renderNextChair, resetSlotCaches } from './booking.js';
 import { STORAGE_KEY_CONFIG, saveConfig, shopConfig } from './config.js';
 import { LoyaltyVault, STORAGE_KEY_BOOKINGS, STORAGE_KEY_LOYALTY, bookings, loyaltyDB, normalizePhone, saveBookings, saveLoyaltyDB, setBookings } from './storage.js';
-import { applyThemeVariables, renderHome, switchTab } from './ui.js';
+import { applyThemeVariables, renderHome, reviewsToText, switchTab, textToReviews } from './ui.js';
 
 // Manager portal (?portal=admin): PIN gate, queue, barber folders, CSV, white-label settings.
 
@@ -74,6 +74,8 @@ export function openAdminModal() {
   document.getElementById('cfgAccentColor').value = shopConfig.accentColor || '#d4af37';
   document.getElementById('cfgPaymentLinkUrl').value = shopConfig.paymentLinkUrl || '';
   document.getElementById('cfgApiBaseUrl').value = shopConfig.apiBaseUrl || '';
+  document.getElementById('cfgReviews').value = reviewsToText(shopConfig.reviews);
+  document.getElementById('cfgReviewsAreSamples').checked = !!shopConfig.reviewsAreSamples;
   document.getElementById('adminPinHint').textContent = apiConfigured()
     ? '(Live mode — PIN is checked by the API server)'
     : '(Demo mode — set an API URL in Settings for a real PIN. Demo PIN: 1234)';
@@ -283,6 +285,8 @@ export function saveWhiteLabelConfig() {
   shopConfig.accentColor = document.getElementById('cfgAccentColor').value;
   shopConfig.paymentLinkUrl = document.getElementById('cfgPaymentLinkUrl').value.trim();
   shopConfig.apiBaseUrl = document.getElementById('cfgApiBaseUrl').value.trim();
+  shopConfig.reviews = textToReviews(document.getElementById('cfgReviews').value);
+  shopConfig.reviewsAreSamples = document.getElementById('cfgReviewsAreSamples').checked;
   saveConfig();
   resetSlotCaches();
   applyThemeVariables();
