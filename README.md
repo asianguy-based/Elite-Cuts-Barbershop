@@ -49,6 +49,15 @@ tests/e2e.mjs     Playwright regression suite (`node tests/e2e.mjs`; never touch
 
 If you add a CSS or JS file, add it to `APP_SHELL` in `sw.js` and bump `CACHE_NAME` so installed apps pick it up.
 
+### 🔄 Releasing an update
+
+The app is installed from the browser, not an app store, so it tells people about new versions itself. On every deploy, edit the top of `sw.js`:
+
+1. Bump `CACHE_NAME` (e.g. `elite-cuts-h5-v1.4.0` → `v1.4.1`).
+2. Set `RELEASE_NOTES` to one short sentence about what changed.
+
+Open apps (iPhone and Android home-screen installs and browser tabs) check for a new version when they open, when they come back to the foreground and every 30 minutes. When one is ready they show a popup, **UPDATE: <your release notes>** with an **OK** button; OK switches to the new version and reloads. `js/update.js` holds that logic; `node --test tests/app-update.test.mjs` tests it.
+
 ---
 
 ## ☁️ Backend (Cloudflare Worker)
