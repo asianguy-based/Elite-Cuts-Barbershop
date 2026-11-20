@@ -1,0 +1,10 @@
+{
+  "name": "elite-cuts-api-d1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "db:init": "wrangler d1 execute elite-cuts --remote --file=schema.sql",
+    "deploy": "wrangler deploy"
+  }
+}
