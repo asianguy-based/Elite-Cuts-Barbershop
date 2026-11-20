@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#f5f0e6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#15130f" media="(prefers-color-scheme: dark)">
+<title>Elite Cuts — Book a Chair</title>
+<meta name="description" content="Book a cut at Elite Cuts in a few taps. See the next open chair, the price list, our barbers and your loyalty card.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%23f5f0e6'/%3E%3Ctext x='50%25' y='56%25' dominant-baseline='middle' text-anchor='middle' font-family='Georgia,serif' font-size='34' fill='%237a1f2b'%3EEC%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,400&family=Inter:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --paper: #f5f0e6;
+    --paper-2: #ece5d6;
+    --card: #fbf8f2;
+    --ink: #1b1916;
+    --muted: #5b544a;
+    --rule: #d6cbb7;
+    --rule-strong: #1b1916;
+    --accent: #7a1f2b;
+    --accent-ink: #fbf8f2;
+    --accent-soft: #f0e0dc;
+    --ok: #2f5a3a;
+    --danger: #8f2a1d;
+    --scrim: rgba(27, 25, 22, 0.42);
+    --serif: 'Fraunces', 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+    --sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --radius: 4px;
+    --gutter: 20px;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #15130f;
+      --paper-2: #1d1a15;
+      --card: #1c1914;
+      --ink: #eee7da;
+      --muted: #b2a896;
+      --rule: #3a342b;
+      --rule-strong: #eee7da;
+      --accent: #e59a8e;
+      --accent-ink: #1a0f0c;
+      --accent-soft: #3a211d;
+      --ok: #9cc8a4;
+      --danger: #f0a090;
+      --scrim: rgba(0, 0, 0, 0.6);
+      color-scheme: dark;
+    }
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  html.locked { overflow: hidden; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font: 400 16px/1.55 var(--sans);
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+  h1, h2, h3, h4 { font-family: var(--serif); font-weight: 400; margin: 0; line-height: 1.1; letter-spacing: -0.01em; }
+  p { margin: 0; }
+  a { color: inherit; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 2px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+  .skip { position: absolute; left: 12px; top: -60px; background: var(--ink); color: var(--paper); padding: 8px 14px; z-index: 50; }
+  .skip:focus { top: 12px; }
+
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 var(--gutter); }
+  .eyebrow { font: 600 11px/1.3 var(--sans); letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
+  .num { font-variant-numeric: tabular-nums lining-nums; }
+  .muted { color: var(--muted); }
+  .rule { border: 0; border-top: 1px solid var(--rule); margin: 0; }
+
+  /* ---------- buttons ---------- */
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    min-height: 48px; padding: 0 22px; border-radius: var(--radius);
+    border: 1px solid var(--ink); background: transparent; cursor: pointer;
+    font: 600 15px/1 var(--sans); letter-spacing: 0.01em; text-decoration: none;
+    transition: background-color .15s, color .15s, border-color .15s;
+  }
+  .btn:hover { background: var(--paper-2); }
+  .btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .btn-primary:hover { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+  .btn-primary[disabled] { background: var(--rule); border-color: var(--rule); color: var(--muted); cursor: not-allowed; }
+  .btn-block { width: 100%; }
+  .btn-sm { min-height: 38px; padding: 0 14px; font-size: 14px; }
+  .link {
+    background: none; border: 0; padding: 4px 0; cursor: pointer; color: var(--accent);
+    font: 600 14px/1.3 var(--sans); text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 1px;
+  }
+
+  /* ---------- masthead ---------- */
+  .masthead { border-bottom: 1px solid var(--rule); }
+  .masthead .wrap { display: flex; align-items: center; justify-content: space-between; height: 60px; gap: 16px; }
+  .wordmark { font-family: var(--serif); font-size: 19px; letter-spacing: 0.08em; text-transform: uppercase; text-decoration: none; }
+  .nav { display: none; gap: 28px; font-size: 14px; }
+  .nav a { text-decoration: none; color: var(--muted); }
+  .nav a:hover { color: var(--ink); }
+  .call { font: 600 14px var(--sans); text-decoration: none; border-bottom: 1px solid currentColor; padding-bottom: 1px; }
+
+  /* ---------- hero ---------- */
+  .hero { padding: 44px 0 36px; }
+  .hero-grid { display: grid; gap: 32px; }
+  .hero h1 { font-size: clamp(52px, 15vw, 104px); line-height: 0.92; letter-spacing: -0.03em; }
+  .hero h1 em { font-style: italic; color: var(--accent); }
+  .hero .tagline { font-family: var(--serif); font-style: italic; font-size: 20px; color: var(--muted); margin-top: 14px; }
+  .hero .eyebrow { margin-bottom: 18px; }
+
+  .next {
+    border: 1px solid var(--rule-strong); background: var(--card); border-radius: var(--radius);
+    padding: 22px 22px 20px; position: relative;
+  }
+  .next .eyebrow { margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); display: inline-block; }
+  .next-when { font-family: var(--serif); font-size: clamp(32px, 9vw, 44px); line-height: 1.05; }
+  .next-who { margin-top: 8px; color: var(--muted); font-size: 15px; }
+  .next-who strong { color: var(--ink); font-weight: 600; }
+  .next .btn { margin-top: 20px; }
+  .next-alt { margin-top: 12px; text-align: center; }
+  .skeleton { color: var(--muted); }
+
+  /* ---------- sections ---------- */
+  section.block { padding: 40px 0; border-top: 1px solid var(--rule); }
+  .sec-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+  .sec-head h2 { font-size: clamp(30px, 7vw, 40px); }
+  .sec-head .eyebrow { white-space: nowrap; }
+
+  /* price list */
+  .menu { list-style: none; margin: 0; padding: 0; }
+  .menu li + li { border-top: 1px solid var(--rule); }
+  .menu-item {
+    display: block; width: 100%; text-align: left; background: none; border: 0; cursor: pointer;
+    padding: 18px 0; border-radius: 0;
+  }
+  .menu-item:hover .menu-name { color: var(--accent); }
+  .menu-line { display: flex; align-items: baseline; gap: 10px; }
+  .menu-name { font-family: var(--serif); font-size: 21px; line-height: 1.2; transition: color .15s; }
+  .leader { flex: 1; border-bottom: 1px dotted var(--muted); transform: translateY(-5px); min-width: 16px; opacity: .7; }
+  .menu-price { font-family: var(--serif); font-size: 21px; }
+  .menu-desc { color: var(--muted); font-size: 14.5px; margin-top: 6px; max-width: 56ch; }
+  .menu-meta { margin-top: 8px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: flex; gap: 14px; }
+  .menu-meta .book-cue { color: var(--accent); font-weight: 600; }
+
+  /* barbers */
+  .barbers { display: grid; gap: 0; }
+  .barber { display: grid; grid-template-columns: 64px 1fr; gap: 16px; align-items: start; padding: 20px 0; border-top: 1px solid var(--rule); }
+  .barber:first-child { border-top: 0; padding-top: 4px; }
+  .mono {
+    width: 64px; height: 64px; border-radius: 50%; border: 1px solid var(--rule-strong);
+    display: grid; place-items: center; font-family: var(--serif); font-size: 22px; letter-spacing: .02em;
+  }
+  .barber h3 { font-size: 24px; }
+  .barber .role { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .barber .spec { font-family: var(--serif); font-style: italic; margin-top: 8px; font-size: 16px; }
+  .barber .link { margin-top: 8px; }
+
+  /* visit + rewards */
+  .two { display: grid; gap: 40px; }
+  .hours { width: 100%; border-collapse: collapse; margin-top: 16px; font-size: 15px; }
+  .hours th, .hours td { text-align: left; padding: 10px 0; border-bottom: 1px solid var(--rule); font-weight: 400; }
+  .hours td { text-align: right; }
+  .hours tr.today th, .hours tr.today td { font-weight: 600; }
+  .hours tr.today th::after { content: ' · today'; color: var(--accent); font-weight: 600; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; }
+  .address { font-family: var(--serif); font-size: 20px; line-height: 1.35; }
+  .visit-links { display: flex; flex-wrap: wrap; gap: 18px; margin-top: 18px; }
+
+  .loyal-card { border: 1px solid var(--rule-strong); border-radius: var(--radius); background: var(--card); padding: 22px; }
+  .loyal-card h3 { font-size: 26px; }
+  .stamps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin: 18px 0 6px; max-width: 300px; }
+  .stamp { aspect-ratio: 1; border-radius: 50%; border: 1px dashed var(--muted); display: grid; place-items: center; font: 500 12px var(--sans); color: var(--muted); }
+  .stamp.on { border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); }
+  .stamp.free { font-family: var(--serif); font-style: italic; font-size: 12px; }
+  .field { display: block; margin-top: 14px; }
+  .field > span { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
+  .input {
+    width: 100%; min-height: 48px; padding: 10px 14px; border: 1px solid var(--muted); border-radius: var(--radius);
+    background: var(--paper); font-size: 16px;
+  }
+  .input:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: var(--accent); }
+  textarea.input { min-height: 76px; resize: vertical; }
+  .inline-form { display: flex; gap: 10px; align-items: end; }
+  .inline-form .field { flex: 1; margin-top: 14px; }
+  .inline-form .btn { flex: none; }
+  .loyal-result { margin-top: 18px; }
+  .loyal-result .pts { font-family: var(--serif); font-size: 36px; }
+  .hist { list-style: none; padding: 0; margin: 12px 0 0; font-size: 14px; }
+  .hist li { padding: 8px 0; border-top: 1px solid var(--rule); display: flex; justify-content: space-between; gap: 12px; }
+
+  footer { border-top: 1px solid var(--rule); padding: 28px 0 48px; font-size: 13px; color: var(--muted); }
+  footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px; }
+
+  /* ---------- bottom sheet ---------- */
+  dialog.sheet {
+    padding: 0; border: 0; color: var(--ink); background: var(--paper);
+    width: 100%; max-width: 100%; max-height: 94dvh; height: auto;
+    margin: auto 0 0 0; border-radius: 14px 14px 0 0;
+    display: flex; flex-direction: column; overflow: hidden;
+    box-shadow: 0 -1px 0 var(--rule);
+  }
+  dialog.sheet:not([open]) { display: none; }
+  dialog.sheet::backdrop { background: var(--scrim); }
+  dialog.sheet[open] { animation: up .24s cubic-bezier(.2,.8,.2,1); }
+  @keyframes up { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .grab { width: 40px; height: 4px; border-radius: 2px; background: var(--rule); margin: 10px auto 0; }
+  .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px var(--gutter) 12px; border-bottom: 1px solid var(--rule); }
+  .sheet-head h2 { font-size: 24px; }
+  .sheet-head .eyebrow { margin-bottom: 4px; }
+  .icon-btn { width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--rule); background: transparent; display: grid; place-items: center; cursor: pointer; flex: none; }
+  .icon-btn:hover { border-color: var(--ink); }
+  .icon-btn svg { width: 18px; height: 18px; }
+  .icon-btn[hidden] { display: none; }
+  .sheet-body { overflow-y: auto; padding: 8px var(--gutter) 24px; flex: 1; overscroll-behavior: contain; }
+  .sheet-foot { border-top: 1px solid var(--rule); padding: 12px var(--gutter) calc(12px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 14px; background: var(--paper); }
+  .total { flex: 1; min-width: 0; }
+  .total-amt { font-family: var(--serif); font-size: 26px; line-height: 1; }
+  .total-sub { font-size: 13px; color: var(--muted); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sheet-foot .btn { flex: none; min-width: 140px; }
+  .progress { display: flex; gap: 6px; padding: 0 var(--gutter); margin-top: 10px; }
+  .progress span { flex: 1; height: 2px; background: var(--rule); }
+  .progress span.on { background: var(--accent); }
+
+  .choice-list { list-style: none; margin: 0; padding: 0; }
+  .choice { display: flex; align-items: flex-start; gap: 14px; padding: 16px 0; border-bottom: 1px solid var(--rule); cursor: pointer; }
+  .choice input { appearance: none; -webkit-appearance: none; width: 22px; height: 22px; border: 1px solid var(--ink); border-radius: 3px; margin: 3px 0 0; flex: none; display: grid; place-items: center; cursor: pointer; background: var(--paper); }
+  .choice input:checked { background: var(--accent); border-color: var(--accent); }
+  .choice input:checked::after { content: ''; width: 6px; height: 11px; border: solid var(--accent-ink); border-width: 0 2px 2px 0; transform: rotate(45deg) translate(-1px, -1px); }
+  .choice-main { flex: 1; min-width: 0; }
+  .choice-title { display: flex; justify-content: space-between; gap: 12px; font-family: var(--serif); font-size: 19px; line-height: 1.25; }
+  .choice-sub { font-size: 13.5px; color: var(--muted); margin-top: 4px; }
+
+  .step-label { font: 600 13px var(--sans); margin: 20px 0 10px; display: flex; justify-content: space-between; align-items: baseline; }
+  .strip { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 10px; margin: 0 calc(-1 * var(--gutter)); padding-left: var(--gutter); padding-right: var(--gutter); scrollbar-width: none; scroll-snap-type: x proximity; }
+  .strip::-webkit-scrollbar { display: none; }
+  .day {
+    flex: none; width: 62px; padding: 10px 0 9px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--card);
+    text-align: center; cursor: pointer; scroll-snap-align: start;
+  }
+  .day .dw { display: block; font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .day .dn { display: block; font-family: var(--serif); font-size: 24px; line-height: 1.15; }
+  .day .dc { display: block; font-size: 11px; color: var(--muted); min-height: 14px; }
+  .day[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+  .day[aria-pressed="true"] .dw, .day[aria-pressed="true"] .dc { color: var(--paper); opacity: .8; }
+  .day.full .dn { text-decoration: line-through; opacity: .5; }
+
+  .pills { display: flex; flex-wrap: wrap; gap: 8px; }
+  .pill { min-height: 40px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--rule); background: transparent; cursor: pointer; font-size: 14px; }
+  .pill[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--paper); }
+  .times { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px; }
+  .time {
+    min-height: 48px; border: 1px solid var(--rule-strong); border-radius: var(--radius); background: transparent; cursor: pointer;
+    font: 500 16px var(--sans); font-variant-numeric: tabular-nums;
+  }
+  .time small { font-size: 12px; color: var(--muted); margin-left: 2px; }
+  .time:hover { background: var(--paper-2); }
+  .time[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .time[aria-pressed="true"] small { color: var(--accent-ink); }
+  .empty { padding: 18px; border: 1px dashed var(--rule); border-radius: var(--radius); color: var(--muted); font-size: 14px; }
+  .assigned { margin-top: 14px; font-size: 14px; color: var(--muted); min-height: 21px; }
+  .assigned strong { color: var(--ink); }
+
+  .summary { border: 1px solid var(--rule-strong); background: var(--card); border-radius: var(--radius); padding: 18px; margin-top: 18px; }
+  .summary dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 10px 18px; font-size: 15px; }
+  .summary dt { color: var(--muted); }
+  .summary dd { margin: 0; text-align: right; }
+  .summary .big { font-family: var(--serif); font-size: 26px; margin-bottom: 14px; line-height: 1.15; }
+  .note { margin-top: 14px; padding: 12px 14px; border-left: 2px solid var(--accent); background: var(--accent-soft); font-size: 14px; }
+  .error { color: var(--danger); font-size: 14px; margin-top: 10px; min-height: 1px; }
+
+  .done { text-align: center; padding: 18px 0 6px; }
+  .done .mark { width: 56px; height: 56px; border-radius: 50%; border: 1px solid var(--accent); color: var(--accent); display: grid; place-items: center; margin: 0 auto 16px; }
+  .done h3 { font-size: 32px; }
+  .ref { display: inline-block; margin-top: 14px; padding: 8px 14px; border: 1px dashed var(--ink); font: 600 18px var(--sans); letter-spacing: .12em; }
+  .done .actions { display: grid; gap: 10px; margin-top: 22px; text-align: left; }
+
+  /* ---------- admin ---------- */
+  .admin { padding-top: 36px; padding-bottom: 60px; }
+  .admin h1 { font-size: clamp(38px, 9vw, 56px); }
+  .admin-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin: 24px 0 8px; }
+  .admin-bar .grow { flex: 1; }
+  .day-nav { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .day-nav .input { width: auto; min-height: 44px; }
+  .admin-stats { font-size: 14px; color: var(--muted); margin: 10px 0 6px; }
+  .bk { padding: 16px 0; border-top: 1px solid var(--rule); display: grid; grid-template-columns: 84px 1fr; gap: 12px; }
+  .bk-time { font-family: var(--serif); font-size: 20px; line-height: 1.2; white-space: nowrap; }
+  .bk-name { font-weight: 600; }
+  .bk-meta { font-size: 14px; color: var(--muted); margin-top: 2px; }
+  .bk-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center; }
+  .status { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; font-weight: 600; padding: 3px 8px; border: 1px solid currentColor; border-radius: 2px; }
+  .status.Completed, .status.Paid { color: var(--ok); }
+  .status.Cancelled, .status.No-Show { color: var(--danger); }
+  .status.Confirmed, .status.Deposit-Unpaid { color: var(--accent); }
+  .bk.cancelled .bk-name, .bk.cancelled .bk-time { text-decoration: line-through; opacity: .6; }
+  .pin-box { max-width: 360px; margin-top: 24px; }
+
+  [hidden] { display: none !important; }
+
+  /* ---------- larger screens ---------- */
+  @media (min-width: 720px) {
+    :root { --gutter: 32px; }
+    .nav { display: flex; }
+    .hero { padding: 72px 0 64px; }
+    .hero-grid { grid-template-columns: 1.25fr 1fr; align-items: end; gap: 56px; }
+    .next { padding: 28px; }
+    section.block { padding: 64px 0; }
+    .sec-wrap { display: grid; grid-template-columns: 220px 1fr; gap: 48px; }
+    .sec-head { flex-direction: column; align-items: flex-start; gap: 10px; }
+    .barbers { grid-template-columns: 1fr 1fr; gap: 0 40px; }
+    .barber:first-child, .barber:nth-child(2) { border-top: 0; padding-top: 4px; }
+    .two { grid-template-columns: 1fr 1fr; gap: 64px; }
+    dialog.sheet { max-width: 560px; margin: auto; border-radius: 8px; max-height: 88vh; box-shadow: 0 20px 60px rgba(0,0,0,.25); }
+    .grab { display: none; }
+    .sheet-head { padding-top: 18px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<!-- ============ PUBLIC SITE ============ -->
+<div id="site">
+  <header class="masthead">
+    <div class="wrap">
+      <a class="wordmark" href="#top" id="wordmark">Elite Cuts</a>
+      <nav class="nav" aria-label="Sections">
+        <a href="#menu">Menu</a>
+        <a href="#barbers">Barbers</a>
+        <a href="#visit">Visit</a>
+        <a href="#rewards">Rewards</a>
+      </nav>
+      <a class="call" id="callLink" href="tel:+15552345678">Call the shop</a>
+    </div>
+  </header>
+
+  <main id="main">
+    <section class="hero" id="top">
+      <div class="wrap hero-grid">
+        <div>
+          <p class="eyebrow" id="heroEyebrow">Barbering &amp; grooming</p>
+          <h1 id="heroTitle">Elite <em>Cuts</em></h1>
+          <p class="tagline" id="heroTagline">Master Barbering &amp; Grooming Lounge</p>
+        </div>
+        <div class="next" aria-live="polite">
+          <p class="eyebrow"><span class="dot" aria-hidden="true"></span>Next available chair</p>
+          <div id="nextBody">
+            <p class="next-when skeleton">Finding the next opening…</p>
+          </div>
+          <button class="btn btn-primary btn-block" id="nextBook" disabled>Book it</button>
+          <div class="next-alt"><button class="link" id="nextOther">Choose a different time</button></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="block" id="menu" aria-labelledby="menuTitle">
+      <div class="wrap sec-wrap">
+        <div class="sec-head">
+          <h2 id="menuTitle">The Menu</h2>
+          <p class="eyebrow">Tap a service to book</p>
+        </div>
+        <ul class="menu" id="menuList"></ul>
+      </div>
+    </section>
+
+    <section class="block" id="barbers" aria-labelledby="barbersTitle">
+      <div class="wrap sec-wrap">
+        <div class="sec-head">
+          <h2 id="barbersTitle">The Barbers</h2>
+          <p class="eyebrow" id="chairCount">Two chairs</p>
+        </div>
+        <div class="barbers" id="barberList"></div>
+      </div>
+    </section>
+
+    <section class="block" aria-label="Visit and rewards">
+      <div class="wrap two">
+        <div id="visit">
+          <div class="sec-head" style="flex-direction:column;align-items:flex-start;gap:10px">
+            <p class="eyebrow">Visit</p>
+            <h2>Find us</h2>
+          </div>
+          <p class="address" id="address">742 Evergreen Ave, Suite 100</p>
+          <p class="muted" id="addressNote" style="margin-top:6px;font-size:14px"></p>
+          <table class="hours" aria-label="Opening hours">
+            <tbody id="hoursBody"></tbody>
+          </table>
+          <div class="visit-links">
+            <a class="link" id="mapLink" href="#" target="_blank" rel="noopener">Get directions</a>
+            <a class="link" id="callLink2" href="tel:+15552345678">Call us</a>
+          </div>
+        </div>
+
+        <div id="rewards">
+          <div class="sec-head" style="flex-direction:column;align-items:flex-start;gap:10px">
+            <p class="eyebrow">Rewards</p>
+            <h2>The tenth cut is on us</h2>
+          </div>
+          <div class="loyal-card">
+            <h3>Your card</h3>
+            <p class="muted" style="font-size:14px;margin-top:6px">Every visit earns a stamp and 100 points. Look yours up with the phone number you book with.</p>
+            <div class="stamps" id="stamps" aria-label="Stamp card"></div>
+            <form class="inline-form" id="loyalForm" novalidate>
+              <label class="field">
+                <span>Phone number</span>
+                <input class="input" type="tel" id="loyalPhone" autocomplete="tel" inputmode="tel" placeholder="(555) 234-5678" required>
+              </label>
+              <button class="btn" type="submit">Look up</button>
+            </form>
+            <p class="error" id="loyalError" role="alert"></p>
+            <div class="loyal-result" id="loyalResult" aria-live="polite" hidden></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <span id="footName">Elite Cuts</span>
+      <span id="modeNote">Demo mode: bookings are saved on this device only.</span>
+    </div>
+  </footer>
+</div>
+
+<!-- ============ BOOKING SHEET ============ -->
+<dialog class="sheet" id="sheet" aria-labelledby="sheetTitle">
+  <div class="grab" aria-hidden="true"></div>
+  <div class="sheet-head">
+    <button class="icon-btn" id="sheetBack" aria-label="Back" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
+    <div style="flex:1;min-width:0">
+      <p class="eyebrow" id="sheetStep">Step 1 of 4</p>
+      <h2 id="sheetTitle">Choose services</h2>
+    </div>
+    <button class="icon-btn" id="sheetClose" aria-label="Close booking" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+  <div class="progress" aria-hidden="true"><span></span><span></span><span></span><span></span></div>
+
+  <div class="sheet-body" id="sheetBody">
+    <!-- Step 1: services -->
+    <div data-step="1">
+      <fieldset style="border:0;padding:0;margin:0">
+        <legend class="sr-only">Services</legend>
+        <ul class="choice-list" id="svcChoices"></ul>
+      </fieldset>
+    </div>
+
+    <!-- Step 2: time -->
+    <div data-step="2" hidden>
+      <div class="step-label"><span id="dayLabel">Day</span><span class="muted" style="font-weight:400" id="monthLabel"></span></div>
+      <div class="strip" id="dayStrip" role="group" aria-label="Day"></div>
+      <div class="step-label"><span>Barber</span></div>
+      <div class="pills" id="barberPills" role="group" aria-label="Barber"></div>
+      <div class="step-label"><span>Time</span><span class="muted" style="font-weight:400" id="timeHint"></span></div>
+      <div class="times" id="timeGrid" role="group" aria-label="Available times"></div>
+      <p class="assigned" id="assigned" aria-live="polite"></p>
+    </div>
+
+    <!-- Step 3: details -->
+    <div data-step="3" hidden>
+      <div class="summary" style="margin-top:12px">
+        <p class="big" id="detailWhen"></p>
+        <p class="muted" style="font-size:14px" id="detailWhat"></p>
+        <button class="link" type="button" id="changeTime" style="margin-top:6px">Change time</button>
+      </div>
+      <form id="detailForm" novalidate>
+        <label class="field">
+          <span>Your name</span>
+          <input class="input" id="fName" autocomplete="name" required>
+        </label>
+        <label class="field">
+          <span>Mobile number</span>
+          <input class="input" id="fPhone" type="tel" inputmode="tel" autocomplete="tel" required aria-describedby="phoneHelp">
+          <small class="muted" id="phoneHelp" style="display:block;margin-top:6px;font-size:13px">We text a reminder. It is also your loyalty card number.</small>
+        </label>
+        <label class="field">
+          <span>Notes for your barber <span class="muted" style="font-weight:400">(optional)</span></span>
+          <textarea class="input" id="fNotes" maxlength="500"></textarea>
+        </label>
+        <p class="error" id="detailError" role="alert"></p>
+      </form>
+    </div>
+
+    <!-- Step 4: confirm -->
+    <div data-step="4" hidden>
+      <div class="summary">
+        <p class="big" id="confWhen"></p>
+        <dl id="confList"></dl>
+      </div>
+      <p class="note" id="depositNote"></p>
+      <p class="error" id="confError" role="alert"></p>
+    </div>
+
+    <!-- Step 5: done -->
+    <div data-step="5" hidden>
+      <div class="done">
+        <div class="mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+        </div>
+        <h3 id="doneTitle">You're booked</h3>
+        <p class="muted" id="doneWhen" style="margin-top:8px"></p>
+        <p class="ref num" id="doneRef"></p>
+        <p class="muted" id="donePts" style="margin-top:12px;font-size:14px"></p>
+        <div class="actions">
+          <button class="btn btn-primary btn-block" type="button" id="icsBtn">Add to calendar</button>
+          <button class="btn btn-block" type="button" id="doneClose">Done</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sheet-foot" id="sheetFoot">
+    <div class="total" aria-live="polite">
+      <div class="total-amt num" id="totalAmt">$0</div>
+      <div class="total-sub" id="totalSub">Nothing selected</div>
+    </div>
+    <button class="btn btn-primary" type="button" id="sheetNext">Continue</button>
+  </div>
+</dialog>
+
+<!-- ============ MANAGER VIEW (?portal=admin) ============ -->
+<div id="admin" hidden>
+  <header class="masthead">
+    <div class="wrap">
+      <span class="wordmark" id="adminWordmark">Elite Cuts</span>
+      <a class="call" href="./">Back to site</a>
+    </div>
+  </header>
+  <main class="admin wrap" id="adminMain">
+    <p class="eyebrow">Manager</p>
+    <h1>The book</h1>
+
+    <form class="pin-box" id="pinForm" novalidate>
+      <label class="field">
+        <span>Manager PIN</span>
+        <input class="input" id="pinInput" type="password" inputmode="numeric" autocomplete="current-password" required aria-describedby="pinHelp">
+      </label>
+      <p class="muted" id="pinHelp" style="font-size:13px;margin-top:6px">Demo PIN: 1234</p>
+      <p class="error" id="pinError" role="alert"></p>
+      <button class="btn btn-primary" type="submit" style="margin-top:12px">Open the book</button>
+    </form>
+
+    <div id="adminPanel" hidden>
+      <div class="admin-bar">
+        <div class="day-nav">
+          <button class="icon-btn" type="button" id="dayPrev" aria-label="Previous day">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
+          </button>
+          <label class="sr-only" for="dayPick">Day</label>
+          <input class="input" type="date" id="dayPick">
+          <button class="icon-btn" type="button" id="dayNext" aria-label="Next day">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>
+          </button>
+          <button class="btn btn-sm" type="button" id="dayToday">Today</button>
+        </div>
+        <span class="grow"></span>
+        <button class="btn btn-sm" type="button" id="csvBtn">Export CSV</button>
+        <button class="btn btn-sm" type="button" id="resetBtn">Reset demo data</button>
+      </div>
+      <h2 id="adminDayTitle" style="font-size:28px;margin-top:18px"></h2>
+      <p class="admin-stats" id="adminStats" aria-live="polite"></p>
+      <div id="adminList"></div>
+    </div>
+  </main>
+</div>
+
+<script>
+/* =====================================================================
+   Elite Cuts — "Studio Light" alternative.
+   Set API_URL to your Cloudflare Worker (e.g. https://elite-cuts-api.example.workers.dev)
+   to use the live backend. Leave empty for demo mode (data in this browser only).
+   ===================================================================== */
+const API_URL = '';
+
+const DEFAULT_CONFIG = {
+  shopName: 'ELITE CUTS',
+  tagline: 'Master Barbering & Grooming Lounge',
+  phone: '+15552345678',
+  address: '742 Evergreen Ave, Suite 100 • Free Validated Garage Parking',
+  depositAmount: 15,
+  requireDeposit: false,
+  services: [
+    { id: 'srv-1', name: 'The Executive Cut & Style', price: 45, duration: 45, category: 'Hair', desc: 'Precision scissor or skin fade, hot lather neck shave & invigorating wash.' },
+    { id: 'srv-2', name: 'Cut + Beard Sculpt & Hot Towel', price: 65, duration: 60, category: 'Combo', desc: 'Full bespoke haircut paired with straight-razor beard line-up and essential oils.' },
+    { id: 'srv-3', name: 'Traditional Straight Razor Shave', price: 40, duration: 30, category: 'Shave', desc: 'Three hot towels, rich sandalwood lather, double-pass straight razor finish.' },
+    { id: 'srv-4', name: 'Beard Trim & Razor Line-Up', price: 30, duration: 25, category: 'Beard', desc: 'Shape, taper, conditioning balm, and crisp cheek/neck razor detailing.' }
+  ],
+  barbers: [
+    { id: 'brb-1', firstName: 'Marcus', lastName: 'Vance', name: 'Marcus Vance', role: 'Master Barber • 12 Yrs', specialty: 'Skin Fades & Beard Sculpting', rating: '5.0' },
+    { id: 'brb-2', firstName: 'Mateo', lastName: 'Cruz', name: 'Mateo Cruz', role: 'Senior Barber • 8 Yrs', specialty: 'Razor Tapers & Crop Cuts', rating: '4.9' }
+  ],
+  timeSlots: ['09:00 AM', '10:00 AM', '11:00 AM', '12:00 PM', '01:30 PM', '02:30 PM', '03:30 PM', '04:30 PM', '05:30 PM', '06:30 PM'],
+  // Opening hours in minutes after midnight, by weekday (0 = Sunday). null = closed.
+  hours: { 0: [600, 960], 1: [540, 1200], 2: [540, 1200], 3: [540, 1200], 4: [540, 1200], 5: [540, 1200], 6: [480, 1080] }
+};
+
+// Reuse content edits saved by the main app's settings screen, if any (same origin).
+const CONFIG = (() => {
+  const c = Object.assign({}, DEFAULT_CONFIG);
+  try {
+    const saved = JSON.parse(localStorage.getItem('ELITE_CUTS_H5_CONFIG_V1') || '{}');
+    ['shopName', 'tagline', 'phone', 'address', 'depositAmount', 'requireDeposit', 'services', 'barbers', 'timeSlots']
+      .forEach((k) => { if (saved[k] !== undefined && saved[k] !== '') c[k] = saved[k]; });
+  } catch (e) { /* ignore */ }
+  return c;
+})();
+
+const DAYS_AHEAD = 14;
+const KEY_BOOKINGS = 'EC_STUDIO_BOOKINGS_V1';
+const KEY_LOYALTY = 'EC_STUDIO_LOYALTY_V1';
+const KEY_SEEDED = 'EC_STUDIO_SEEDED_V1';
+const KEY_TOKEN = 'EC_STUDIO_MANAGER_TOKEN';
+
+/* ---------------- small helpers ---------------- */
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const digits = (p) => String(p || '').replace(/\D/g, '');
+const money = (n) => '$' + (Math.round(n * 100) / 100).toLocaleString('en-US');
+const pad = (n) => String(n).padStart(2, '0');
+const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parseYmd = (s) => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+const addDays = (s, n) => { const d = parseYmd(s); d.setDate(d.getDate() + n); return ymd(d); };
+const todayStr = () => ymd(new Date());
+function toMin(t) {
+  const m = String(t).match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
+  if (!m) return 0;
+  return (Number(m[1]) % 12 + (m[3].toUpperCase() === 'PM' ? 12 : 0)) * 60 + Number(m[2]);
+}
+function fmtTime(t) {
+  const mins = toMin(t); const h = Math.floor(mins / 60), mm = mins % 60;
+  return `${h % 12 || 12}:${pad(mm)} ${h < 12 ? 'am' : 'pm'}`;
+}
+function fmtDur(min) {
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60), m = min % 60;
+  return m ? `${h} hr ${m} min` : `${h} hr`;
+}
+function dayName(s, long) {
+  const t = todayStr();
+  if (s === t) return 'Today';
+  if (s === addDays(t, 1)) return 'Tomorrow';
+  return parseYmd(s).toLocaleDateString('en-US', long ? { weekday: 'long', month: 'long', day: 'numeric' } : { weekday: 'long' });
+}
+function longDate(s) { return parseYmd(s).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }); }
+function fmtPhone(p) {
+  const d = digits(p).replace(/^1(?=\d{10}$)/, '');
+  return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : p;
+}
+const read = (k, fb) => { try { return JSON.parse(localStorage.getItem(k)) ?? fb; } catch (e) { return fb; } };
+const write = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+const barberById = (id) => CONFIG.barbers.find((b) => b.id === id);
+const firstName = (b) => b.firstName || String(b.name).split(' ')[0];
+
+/* =====================================================================
+   DATA LAYER — same shapes as worker/src/index.js
+   ===================================================================== */
+const LocalBackend = {
+  mode: 'demo',
+  _all() { return read(KEY_BOOKINGS, []); },
+  _save(list) { write(KEY_BOOKINGS, list); },
+  _award(booking, points) {
+    const db = read(KEY_LOYALTY, {});
+    const key = digits(booking.clientPhone);
+    const rec = db[key] || { points: 0, stamps: 0, history: [] };
+    rec.name = booking.clientName; rec.phone = booking.clientPhone;
+    rec.points = (rec.points || 0) + points;
+    rec.stamps = ((rec.stamps || 0) + 1) % 11;
+    rec.lastVisit = booking.date;
+    rec.history = [{ date: booking.date, time: booking.time, services: booking.services, barberName: booking.barberName, refCode: booking.refCode, status: booking.status }, ...(rec.history || [])].slice(0, 50);
+    db[key] = rec; write(KEY_LOYALTY, db);
+  },
+  async bookedTimes(date, barberId) {
+    return [...new Set(this._all().filter((b) => b.date === date && b.barberId === barberId && b.status !== 'Cancelled').map((b) => b.time))];
+  },
+  async createBooking(body) {
+    const all = this._all();
+    if (all.some((b) => b.date === body.date && b.barberId === body.barberId && b.time === body.time && b.status !== 'Cancelled')) {
+      return { ok: false, status: 409, error: 'That time is already booked' };
+    }
+    const isDeposit = body.paymentMode === 'deposit';
+    const booking = Object.assign({}, body, {
+      id: `${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 10)}`,
+      refCode: 'EC-' + Math.floor(1000 + Math.random() * 9000),
+      depositAmount: isDeposit ? Number(body.depositAmount) || 0 : 0,
+      status: isDeposit ? 'Deposit Unpaid' : 'Confirmed',
+      paid: false,
+      createdAt: new Date().toISOString()
+    });
+    all.unshift(booking); this._save(all);
+    if (!isDeposit) this._award(booking, 100);
+    return { ok: true, booking };
+  },
+  async loyalty(phone) {
+    const rec = read(KEY_LOYALTY, {})[digits(phone)] || { points: 0, stamps: 0, history: [] };
+    return { points: rec.points || 0, stamps: rec.stamps || 0, history: (rec.history || []).slice(0, 10) };
+  },
+  async managerLogin(pin) { return pin === '1234' ? { ok: true } : { ok: false, error: 'Wrong PIN. The demo PIN is 1234.' }; },
+  async managerBookings(from, to) {
+    return this._all().filter((b) => b.date >= from && b.date <= to);
+  },
+  async setStatus(id, status) {
+    const all = this._all(); const b = all.find((x) => x.id === id);
+    if (!b) return { ok: false, error: 'Booking not found' };
+    if (status === 'Paid' && b.paymentMode === 'deposit' && !b.paid) { b.paid = true; b.paidAt = new Date().toISOString(); this._save(all); this._award(b, 150); }
+    b.status = status; b.updatedAt = new Date().toISOString(); this._save(all);
+    return { ok: true, booking: b };
+  }
+};
+
+const ApiBackend = {
+  mode: 'live',
+  async _req(path, opts = {}) {
+    const headers = { 'Content-Type': 'application/json' };
+    const token = sessionStorage.getItem(KEY_TOKEN);
+    if (token) headers['X-Manager-Token'] = token;
+    const res = await fetch(API_URL.replace(/\/+$/, '') + path, {
+      method: opts.method || 'GET', headers,
+      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined
+    });
+    const isJson = (res.headers.get('content-type') || '').includes('application/json');
+    const data = isJson ? await res.json().catch(() => ({})) : await res.text();
+    return { ok: res.ok, status: res.status, data };
+  },
+  async bookedTimes(date, barberId) {
+    const r = await this._req(`/api/slots?date=${encodeURIComponent(date)}&barberId=${encodeURIComponent(barberId)}`);
+    return r.ok ? (r.data.booked || []) : [];
+  },
+  async createBooking(body) {
+    const r = await this._req('/api/bookings', { method: 'POST', body });
+    if (r.ok && r.data.booking) return { ok: true, booking: r.data.booking };
+    return { ok: false, status: r.status, error: (r.data && r.data.error) || `Server error ${r.status}` };
+  },
+  async loyalty(phone) {
+    const r = await this._req(`/api/loyalty?phone=${encodeURIComponent(digits(phone))}`);
+    return r.ok ? r.data : { points: 0, stamps: 0, history: [] };
+  },
+  async managerLogin(pin) {
+    const r = await this._req('/api/manager/login', { method: 'POST', body: { pin } });
+    if (r.ok && r.data.token) { sessionStorage.setItem(KEY_TOKEN, r.data.token); return { ok: true }; }
+    return { ok: false, error: (r.data && r.data.error) || 'Login failed' };
+  },
+  async managerBookings(from, to) {
+    const r = await this._req(`/api/manager/bookings?from=${from}&to=${to}`);
+    if (r.status === 401) throw new Error('Session expired. Enter the PIN again.');
+    return r.ok ? (r.data.bookings || []) : [];
+  },
+  async setStatus(id, status) {
+    const r = await this._req(`/api/manager/bookings/${encodeURIComponent(id)}`, { method: 'PATCH', body: { status } });
+    return r.ok ? { ok: true, booking: r.data.booking } : { ok: false, error: (r.data && r.data.error) || 'Update failed' };
+  }
+};
+
+const Store = API_URL ? ApiBackend : LocalBackend;
+
+// Demo only: put a few sample appointments in the book so availability looks real.
+function seedDemo() {
+  if (Store.mode !== 'demo' || localStorage.getItem(KEY_SEEDED)) return;
+  const names = [['James Ortiz', '5550101001'], ['Devon Hale', '5550101002'], ['Sam Whitaker', '5550101003'], ['Andre Lewis', '5550101004'], ['Chris Moreno', '5550101005'], ['Rafael Kim', '5550101006']];
+  const list = [];
+  let n = 0;
+  for (let day = 0; day < 3; day++) {
+    const date = addDays(todayStr(), day);
+    CONFIG.barbers.forEach((b, bi) => {
+      CONFIG.timeSlots.forEach((t, ti) => {
+        if ((ti + day + bi * 2) % 3 !== 0) return;
+        const svc = CONFIG.services[(ti + bi) % CONFIG.services.length];
+        const [name, phone] = names[n++ % names.length];
+        list.push({
+          id: `seed-${day}-${bi}-${ti}`, refCode: 'EC-' + (1100 + n), services: [svc.name], totalCost: svc.price, totalMin: svc.duration,
+          barberId: b.id, barberName: b.name, date, time: t, clientName: name, clientPhone: phone, notes: '',
+          paymentMode: 'chair', depositAmount: 0, status: 'Confirmed', paid: false, sample: true, createdAt: new Date().toISOString()
+        });
+      });
+    });
+  }
+  write(KEY_BOOKINGS, list.concat(read(KEY_BOOKINGS, [])));
+  localStorage.setItem(KEY_SEEDED, '1');
+}
+
+/* =====================================================================
+   AVAILABILITY
+   ===================================================================== */
+const bookedCache = new Map();
+async function booked(date, barberId) {
+  const k = date + '|' + barberId;
+  if (!bookedCache.has(k)) bookedCache.set(k, Store.bookedTimes(date, barberId).catch(() => []));
+  return bookedCache.get(k);
+}
+function slotsForDay(date, duration) {
+  const hrs = CONFIG.hours[parseYmd(date).getDay()];
+  if (!hrs) return [];
+  const now = new Date(); const nowMin = now.getHours() * 60 + now.getMinutes();
+  return CONFIG.timeSlots.filter((t) => {
+    const m = toMin(t);
+    if (m < hrs[0] || m + duration > hrs[1]) return false;
+    if (date === todayStr() && m <= nowMin + 15) return false;
+    return true;
+  });
+}
+/** Returns [{ time, barbers: [barberId...] }] for open slots on a date. */
+async function openings(date, duration, barberFilter) {
+  const slots = slotsForDay(date, duration);
+  const barbers = barberFilter === 'any' ? CONFIG.barbers : CONFIG.barbers.filter((b) => b.id === barberFilter);
+  const taken = await Promise.all(barbers.map((b) => booked(date, b.id)));
+  return slots.map((t) => ({ time: t, barbers: barbers.filter((b, i) => !taken[i].includes(t)).map((b) => b.id) }))
+    .filter((s) => s.barbers.length);
+}
+async function nextAvailable(duration) {
+  for (let i = 0; i < DAYS_AHEAD; i++) {
+    const date = addDays(todayStr(), i);
+    const open = await openings(date, duration, 'any');
+    if (open.length) return { date, time: open[0].time, barberId: open[0].barbers[0] };
+  }
+  return null;
+}
+
+/* =====================================================================
+   PUBLIC PAGE RENDER
+   ===================================================================== */
+function renderSite() {
+  const words = CONFIG.shopName.toLowerCase().split(' ').map((w) => w.charAt(0).toUpperCase() + w.slice(1));
+  const display = words.length > 1 ? `${esc(words.slice(0, -1).join(' '))} <em>${esc(words[words.length - 1])}</em>` : esc(words[0]);
+  $('heroTitle').innerHTML = display;
+  $('wordmark').textContent = $('adminWordmark').textContent = $('footName').textContent = words.join(' ');
+  document.title = `${words.join(' ')} — Book a chair`;
+  $('heroTagline').textContent = CONFIG.tagline;
+  ['callLink', 'callLink2'].forEach((id) => { $(id).href = 'tel:' + CONFIG.phone; });
+  const [addr, ...rest] = CONFIG.address.split('•');
+  $('address').textContent = addr.trim();
+  $('addressNote').textContent = rest.join('·').trim();
+  $('mapLink').href = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(addr.trim());
+  const nums = ['No chairs', 'One chair', 'Two chairs', 'Three chairs', 'Four chairs', 'Five chairs'];
+  $('chairCount').textContent = nums[CONFIG.barbers.length] || `${CONFIG.barbers.length} chairs`;
+  $('modeNote').textContent = Store.mode === 'demo' ? 'Demo mode: bookings are saved on this device only.' : 'Bookings are confirmed by text.';
+
+  $('menuList').innerHTML = CONFIG.services.map((s) => `
+    <li><button class="menu-item" type="button" data-svc="${esc(s.id)}" aria-label="Book ${esc(s.name)}, ${money(s.price)}, ${s.duration} minutes">
+      <span class="menu-line"><span class="menu-name">${esc(s.name)}</span><span class="leader" aria-hidden="true"></span><span class="menu-price num">${money(s.price)}</span></span>
+      <span class="menu-desc" style="display:block">${esc(s.desc)}</span>
+      <span class="menu-meta"><span>${s.duration} min</span><span>${esc(s.category)}</span><span class="book-cue">Book</span></span>
+    </button></li>`).join('');
+
+  $('barberList').innerHTML = CONFIG.barbers.map((b) => `
+    <article class="barber">
+      <div class="mono" aria-hidden="true">${esc((b.firstName || b.name)[0])}${esc((b.lastName || b.name.split(' ')[1] || '')[0] || '')}</div>
+      <div>
+        <h3>${esc(b.name)}</h3>
+        <p class="role">${esc(String(b.role).replace('•', '·'))} · ${esc(b.rating)} rating</p>
+        <p class="spec">${esc(b.specialty)}</p>
+        <button class="link" type="button" data-barber="${esc(b.id)}">Book with ${esc(firstName(b))}</button>
+      </div>
+    </article>`).join('');
+
+  const labels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const fmtM = (m) => fmtTime(`${pad(Math.floor(m / 60) % 12 || 12)}:${pad(m % 60)} ${m < 720 ? 'AM' : 'PM'}`);
+  const today = new Date().getDay();
+  const order = [1, 2, 3, 4, 5, 6, 0];
+  // Collapse identical weekday hours into one row.
+  const rows = [];
+  order.forEach((d) => {
+    const h = CONFIG.hours[d]; const txt = h ? `${fmtM(h[0])} – ${fmtM(h[1])}` : 'Closed';
+    const last = rows[rows.length - 1];
+    if (last && last.txt === txt) { last.days.push(d); } else rows.push({ days: [d], txt });
+  });
+  $('hoursBody').innerHTML = rows.map((r) => {
+    const name = r.days.length > 1 ? `${labels[r.days[0]].slice(0, 3)} – ${labels[r.days[r.days.length - 1]].slice(0, 3)}` : labels[r.days[0]];
+    return `<tr class="${r.days.includes(today) ? 'today' : ''}"><th scope="row">${name}</th><td class="num">${r.txt}</td></tr>`;
+  }).join('');
+
+  renderStamps(0);
+}
+
+function renderStamps(n) {
+  let html = '';
+  for (let i = 1; i <= 10; i++) {
+    const on = i <= n;
+    html += `<span class="stamp ${on ? 'on' : ''} ${i === 10 ? 'free' : ''}" aria-hidden="true">${i === 10 ? 'free' : i}</span>`;
+  }
+  $('stamps').innerHTML = html;
+  $('stamps').setAttribute('aria-label', `Stamp card: ${n} of 10 stamps`);
+}
+
+let nextSlot = null;
+async function refreshNext() {
+  const svc = CONFIG.services[0];
+  nextSlot = await nextAvailable(svc.duration);
+  const body = $('nextBody');
+  if (!nextSlot) {
+    body.innerHTML = `<p class="next-when">Fully booked</p><p class="next-who">No openings in the next two weeks. Please call us.</p>`;
+    $('nextBook').disabled = true; return;
+  }
+  const b = barberById(nextSlot.barberId);
+  body.innerHTML = `<p class="next-when">${dayName(nextSlot.date)}, ${fmtTime(nextSlot.time)}</p>
+    <p class="next-who">with <strong>${esc(firstName(b))}</strong> · ${esc(svc.name)} · ${svc.duration} min · ${money(svc.price)}</p>`;
+  $('nextBook').disabled = false;
+  $('nextBook').setAttribute('aria-label', `Book ${dayName(nextSlot.date)} at ${fmtTime(nextSlot.time)} with ${firstName(b)}`);
+}
+
+/* =====================================================================
+   BOOKING SHEET
+   ===================================================================== */
+const state = { step: 1, serviceIds: [], date: todayStr(), time: '', barberFilter: 'any', barberId: '', result: null, busy: false };
+const STEP_TITLES = { 1: 'Choose services', 2: 'Pick a time', 3: 'Your details', 4: 'Confirm', 5: 'Booked' };
+const sheet = $('sheet');
+
+function selected() { return CONFIG.services.filter((s) => state.serviceIds.includes(s.id)); }
+function totals() {
+  const sel = selected();
+  return { cost: sel.reduce((a, s) => a + Number(s.price), 0), min: sel.reduce((a, s) => a + Number(s.duration), 0), sel };
+}
+const isDeposit = () => !!CONFIG.requireDeposit;
+
+function openSheet(opts = {}) {
+  state.serviceIds = opts.serviceIds || (state.serviceIds.length ? state.serviceIds : [CONFIG.services[0].id]);
+  state.barberFilter = opts.barberFilter || 'any';
+  state.date = opts.date || state.date || todayStr();
+  if (state.date < todayStr()) state.date = todayStr();
+  state.time = opts.time || '';
+  state.barberId = opts.barberId || '';
+  state.result = null;
+  $('confError').textContent = $('detailError').textContent = '';
+  renderServices();
+  if (!sheet.open) { sheet.showModal(); document.documentElement.classList.add('locked'); }
+  goStep(opts.step || 1);
+}
+function closeSheet() {
+  sheet.close();
+}
+sheet.addEventListener('close', () => {
+  document.documentElement.classList.remove('locked');
+  if (state.step === 5) { state.serviceIds = []; refreshNext(); }
+});
+sheet.addEventListener('click', (e) => { if (e.target === sheet) closeSheet(); }); // tap on scrim
+
+async function goStep(n) {
+  state.step = n;
+  document.querySelectorAll('#sheetBody [data-step]').forEach((el) => { el.hidden = Number(el.dataset.step) !== n; });
+  $('sheetTitle').textContent = STEP_TITLES[n];
+  $('sheetStep').textContent = n <= 4 ? `Step ${n} of 4` : 'Confirmed';
+  document.querySelectorAll('.progress span').forEach((s, i) => s.classList.toggle('on', i < n));
+  $('sheetBack').hidden = n === 1 || n === 5;
+  $('sheetFoot').hidden = n === 5;
+  $('sheetBody').scrollTop = 0;
+  if (n === 2) await renderTimes(true);
+  if (n === 3) renderDetailsHead();
+  if (n === 4) renderConfirm();
+  if (n === 5) renderDone();
+  updateFoot();
+  const focusTarget = n === 3 ? $('fName') : $('sheetTitle');
+  if (n === 3 && !$('fName').value) setTimeout(() => focusTarget.focus(), 60);
+}
+
+function updateFoot() {
+  const t = totals();
+  $('totalAmt').textContent = money(t.cost);
+  const parts = [t.sel.length ? `${t.sel.length} service${t.sel.length > 1 ? 's' : ''} · ${fmtDur(t.min)}` : 'Nothing selected'];
+  if (state.time && state.step >= 2) parts.push(`${dayName(state.date)} ${fmtTime(state.time)}`);
+  $('totalSub').textContent = parts.join(' · ');
+  const next = $('sheetNext');
+  const labels = { 1: 'Pick a time', 2: 'Continue', 3: 'Review', 4: state.busy ? 'Booking…' : 'Confirm booking' };
+  next.textContent = labels[state.step] || 'Continue';
+  next.disabled = state.busy || (state.step === 1 && !t.sel.length) || (state.step === 2 && !state.time);
+}
+
+function renderServices() {
+  $('svcChoices').innerHTML = CONFIG.services.map((s) => `
+    <li><label class="choice">
+      <input type="checkbox" value="${esc(s.id)}" ${state.serviceIds.includes(s.id) ? 'checked' : ''}>
+      <span class="choice-main">
+        <span class="choice-title"><span>${esc(s.name)}</span><span class="num">${money(s.price)}</span></span>
+        <span class="choice-sub" style="display:block">${s.duration} min · ${esc(s.desc)}</span>
+      </span>
+    </label></li>`).join('');
+}
+$('svcChoices').addEventListener('change', (e) => {
+  state.serviceIds = [...$('svcChoices').querySelectorAll('input:checked')].map((i) => i.value);
+  state.time = ''; // duration changed, re-pick time
+  updateFoot();
+});
+
+let timesToken = 0;
+async function renderTimes(scrollDay) {
+  const my = ++timesToken;
+  const { min } = totals();
+  // Day strip
+  const days = Array.from({ length: DAYS_AHEAD }, (_, i) => addDays(todayStr(), i));
+  $('dayStrip').innerHTML = days.map((d) => {
+    const dt = parseYmd(d);
+    const wd = d === todayStr() ? 'Today' : dt.toLocaleDateString('en-US', { weekday: 'short' });
+    return `<button type="button" class="day" data-date="${d}" aria-pressed="${d === state.date}" aria-label="${longDate(d)}">
+      <span class="dw">${wd}</span><span class="dn num">${dt.getDate()}</span><span class="dc" data-count></span></button>`;
+  }).join('');
+  $('dayLabel').textContent = dayName(state.date, true) === 'Today' || dayName(state.date) === 'Tomorrow' ? `${dayName(state.date)}, ${parseYmd(state.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}` : longDate(state.date);
+  $('monthLabel').textContent = '';
+  if (scrollDay) {
+    const sel = $('dayStrip').querySelector('[aria-pressed="true"]');
+    if (sel) $('dayStrip').scrollLeft = Math.max(0, sel.offsetLeft - $('dayStrip').firstElementChild.offsetLeft - 140);
+  }
+  // Barber pills
+  $('barberPills').innerHTML = [{ id: 'any', label: 'Any barber' }].concat(CONFIG.barbers.map((b) => ({ id: b.id, label: firstName(b) })))
+    .map((p) => `<button type="button" class="pill" data-barber-filter="${esc(p.id)}" aria-pressed="${state.barberFilter === p.id}">${esc(p.label)}</button>`).join('');
+
+  // Times
+  $('timeGrid').innerHTML = '<p class="muted" style="grid-column:1/-1;font-size:14px">Checking the book…</p>';
+  const open = await openings(state.date, min, state.barberFilter);
+  if (my !== timesToken) return;
+  if (state.time && !open.some((o) => o.time === state.time)) { state.time = ''; state.barberId = ''; }
+  $('timeHint').textContent = open.length ? `${open.length} open · ${fmtDur(min)}` : '';
+  if (!open.length) {
+    $('timeGrid').innerHTML = `<p class="empty" style="grid-column:1/-1">No openings ${dayName(state.date) === 'Today' ? 'left today' : 'on this day'}${state.barberFilter !== 'any' ? ' with ' + esc(firstName(barberById(state.barberFilter))) : ''}. Try the next day${state.barberFilter !== 'any' ? ' or any barber' : ''}.</p>`;
+  } else {
+    $('timeGrid').innerHTML = open.map((o) => {
+      const [hm, ap] = fmtTime(o.time).split(' ');
+      return `<button type="button" class="time" data-time="${esc(o.time)}" data-barbers="${o.barbers.join(',')}" aria-pressed="${o.time === state.time}" aria-label="${fmtTime(o.time)}">${hm}<small>${ap}</small></button>`;
+    }).join('');
+  }
+  renderAssigned();
+  updateFoot();
+  // Fill day counts in the background
+  days.forEach(async (d) => {
+    const n = (await openings(d, min, state.barberFilter)).length;
+    if (my !== timesToken) return;
+    const el = $('dayStrip').querySelector(`[data-date="${d}"]`);
+    if (!el) return;
+    el.querySelector('[data-count]').textContent = n ? `${n} open` : 'full';
+    el.classList.toggle('full', !n);
+    el.setAttribute('aria-label', `${longDate(d)}, ${n ? n + ' times open' : 'fully booked'}`);
+  });
+}
+function renderAssigned() {
+  const el = $('assigned');
+  if (!state.time) { el.textContent = state.barberFilter === 'any' ? 'We will seat you with the first free barber.' : ''; return; }
+  const b = barberById(state.barberId);
+  el.innerHTML = `${esc(dayName(state.date))} at ${fmtTime(state.time)} with <strong>${esc(b ? b.name : '')}</strong>`;
+}
+$('dayStrip').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-date]'); if (!btn) return;
+  state.date = btn.dataset.date; state.time = ''; state.barberId = '';
+  renderTimes(false);
+});
+$('barberPills').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-barber-filter]'); if (!btn) return;
+  state.barberFilter = btn.dataset.barberFilter;
+  renderTimes(false);
+});
+$('timeGrid').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-time]'); if (!btn) return;
+  state.time = btn.dataset.time;
+  state.barberId = btn.dataset.barbers.split(',')[0];
+  $('timeGrid').querySelectorAll('[data-time]').forEach((b) => b.setAttribute('aria-pressed', String(b === btn)));
+  renderAssigned(); updateFoot();
+});
+
+function whenLine() {
+  const b = barberById(state.barberId);
+  return `${dayName(state.date)}, ${fmtTime(state.time)} with ${b ? firstName(b) : ''}`;
+}
+function renderDetailsHead() {
+  const t = totals();
+  $('detailWhen').textContent = whenLine();
+  $('detailWhat').textContent = `${t.sel.map((s) => s.name).join(' + ')} · ${fmtDur(t.min)}`;
+}
+$('changeTime').addEventListener('click', () => goStep(2));
+
+function validDetails() {
+  const name = $('fName').value.trim(), phone = $('fPhone').value.trim();
+  let msg = '';
+  if (!name) msg = 'Please add your name.';
+  else if (digits(phone).length < 10) msg = 'Please add a mobile number with area code.';
+  $('detailError').textContent = msg;
+  $('fName').setAttribute('aria-invalid', String(!name));
+  $('fPhone').setAttribute('aria-invalid', String(!!name && digits(phone).length < 10));
+  if (msg) (name ? $('fPhone') : $('fName')).focus();
+  return !msg;
+}
+
+function renderConfirm() {
+  const t = totals(); const b = barberById(state.barberId);
+  $('confWhen').textContent = `${longDate(state.date)}, ${fmtTime(state.time)}`;
+  const rows = [
+    ['Barber', b ? b.name : ''],
+    ...t.sel.map((s) => [s.name, money(s.price)]),
+    ['Time in chair', fmtDur(t.min)],
+    ['Name', $('fName').value.trim()],
+    ['Phone', fmtPhone($('fPhone').value.trim())],
+    ['Total', money(t.cost)]
+  ];
+  if ($('fNotes').value.trim()) rows.splice(rows.length - 1, 0, ['Notes', $('fNotes').value.trim()]);
+  $('confList').innerHTML = rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd class="num">${esc(v)}</dd>`).join('');
+  $('depositNote').textContent = isDeposit()
+    ? `A ${money(CONFIG.depositAmount)} deposit holds your chair. We will text a payment link; the rest is paid at the chair.`
+    : `No deposit needed. You pay at the chair. Running late or need to cancel? Call ${fmtPhone(CONFIG.phone)}.`;
+}
+
+async function submitBooking() {
+  if (state.busy) return;
+  state.busy = true; updateFoot(); $('confError').textContent = '';
+  const t = totals(); const b = barberById(state.barberId);
+  const body = {
+    services: t.sel.map((s) => s.name), totalCost: t.cost, totalMin: t.min,
+    barberId: b.id, barberName: b.name, date: state.date, time: state.time,
+    clientName: $('fName').value.trim(), clientPhone: $('fPhone').value.trim(), notes: $('fNotes').value.trim(),
+    paymentMode: isDeposit() ? 'deposit' : 'chair',
+    depositAmount: isDeposit() ? Number(CONFIG.depositAmount) || 0 : 0
+  };
+  let res;
+  try { res = await Store.createBooking(body); }
+  catch (e) { res = { ok: false, error: 'Could not reach the booking server. Check your connection and try again.' }; }
+  state.busy = false;
+  bookedCache.clear();
+  if (!res.ok) {
+    if (res.status === 409) {
+      $('confError').textContent = 'Someone just took that time. Please pick another.';
+      state.time = ''; await goStep(2); $('assigned').textContent = 'That time was just taken. Please pick another.';
+    } else { $('confError').textContent = res.error; updateFoot(); }
+    return;
+  }
+  state.result = res.booking;
+  goStep(5);
+}
+
+function renderDone() {
+  const bk = state.result;
+  $('doneWhen').textContent = `${longDate(bk.date)} at ${fmtTime(bk.time)} with ${bk.barberName}`;
+  $('doneRef').textContent = bk.refCode;
+  $('doneRef').setAttribute('aria-label', `Reference code ${bk.refCode.split('').join(' ')}`);
+  $('donePts').textContent = bk.paymentMode === 'deposit'
+    ? 'You will earn 150 points once the deposit is paid.'
+    : '100 points and one stamp have been added to your card.';
+  setTimeout(() => $('doneTitle').focus(), 50);
+}
+$('doneTitle').tabIndex = -1;
+
+function icsText(bk) {
+  const start = parseYmd(bk.date); const m = toMin(bk.time);
+  start.setHours(Math.floor(m / 60), m % 60, 0, 0);
+  const end = new Date(start.getTime() + (Number(bk.totalMin) || 45) * 60000);
+  const f = (d) => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+  const now = new Date();
+  const stamp = `${now.getUTCFullYear()}${pad(now.getUTCMonth() + 1)}${pad(now.getUTCDate())}T${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}00Z`;
+  const t = (s) => String(s).replace(/\\/g, '\\\\').replace(/([,;])/g, '\\$1').replace(/\n/g, '\\n');
+  const shop = $('wordmark').textContent;
+  return ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Elite Cuts//Booking//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'BEGIN:VEVENT',
+    `UID:${bk.refCode}-${bk.id}@elitecuts`, `DTSTAMP:${stamp}`, `DTSTART:${f(start)}`, `DTEND:${f(end)}`,
+    `SUMMARY:${t(`${shop}: ${bk.services.join(' + ')}`)}`,
+    `LOCATION:${t(CONFIG.address.split('•')[0].trim())}`,
+    `DESCRIPTION:${t(`With ${bk.barberName}. Ref ${bk.refCode}. Call ${CONFIG.phone} to change.`)}`,
+    'BEGIN:VALARM', 'TRIGGER:-PT1H', 'ACTION:DISPLAY', 'DESCRIPTION:Haircut in one hour', 'END:VALARM',
+    'END:VEVENT', 'END:VCALENDAR'].join('\r\n');
+}
+function download(name, text, type) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 500);
+}
+$('icsBtn').addEventListener('click', () => download(`haircut-${state.result.refCode}.ics`, icsText(state.result), 'text/calendar'));
+$('doneClose').addEventListener('click', closeSheet);
+$('sheetClose').addEventListener('click', closeSheet);
+$('sheetBack').addEventListener('click', () => goStep(Math.max(1, state.step - 1)));
+$('sheetNext').addEventListener('click', () => {
+  if (state.step === 1) goStep(2);
+  else if (state.step === 2 && state.time) goStep(3);
+  else if (state.step === 3) { if (validDetails()) goStep(4); }
+  else if (state.step === 4) submitBooking();
+});
+$('detailForm').addEventListener('submit', (e) => { e.preventDefault(); if (validDetails()) goStep(4); });
+['fName', 'fPhone'].forEach((id) => $(id).addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); if (validDetails()) goStep(4); } }));
+
+/* entry points */
+$('nextBook').addEventListener('click', () => {
+  if (!nextSlot) return;
+  openSheet({ serviceIds: [CONFIG.services[0].id], date: nextSlot.date, time: nextSlot.time, barberId: nextSlot.barberId, step: 3 });
+});
+$('nextOther').addEventListener('click', () => openSheet({ serviceIds: [CONFIG.services[0].id], step: 1 }));
+$('menuList').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-svc]'); if (!btn) return;
+  openSheet({ serviceIds: [btn.dataset.svc], step: 2 });
+});
+$('barberList').addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-barber]'); if (!btn) return;
+  openSheet({ barberFilter: btn.dataset.barber, step: 1 });
+});
+
+/* loyalty */
+$('loyalForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const phone = $('loyalPhone').value.trim();
+  $('loyalError').textContent = '';
+  if (digits(phone).length < 10) { $('loyalError').textContent = 'Enter the 10-digit number you book with.'; $('loyalPhone').focus(); return; }
+  const out = $('loyalResult');
+  let rec;
+  try { rec = await Store.loyalty(phone); } catch (err) { $('loyalError').textContent = 'Could not reach the server. Try again.'; return; }
+  renderStamps(rec.stamps || 0);
+  const toGo = 10 - (rec.stamps || 0);
+  out.hidden = false;
+  if (!rec.points && !(rec.history || []).length) {
+    out.innerHTML = `<p class="pts num">0 pts</p><p class="muted" style="font-size:14px">No visits yet for ${esc(fmtPhone(phone))}. Your first booking starts the card.</p>`;
+    return;
+  }
+  out.innerHTML = `<p class="pts num">${(rec.points || 0).toLocaleString()} pts</p>
+    <p class="muted" style="font-size:14px">${rec.stamps || 0} of 10 stamps. ${toGo <= 1 ? 'Your next cut is free.' : `${toGo} more visits to a free cut.`}</p>
+    <ul class="hist">${(rec.history || []).slice(0, 5).map((h) => `<li><span>${esc(parseYmd(h.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }))} · ${esc((h.services || []).join(', '))}</span><span class="muted">${esc(h.barberName || '')}</span></li>`).join('')}</ul>`;
+});
+
+/* =====================================================================
+   MANAGER VIEW
+   ===================================================================== */
+const admin = { day: todayStr(), list: [] };
+function initAdmin() {
+  $('site').hidden = true; $('admin').hidden = false;
+  document.title = 'Manager · ' + $('wordmark').textContent;
+  $('pinHelp').textContent = Store.mode === 'demo' ? 'Demo mode. The PIN is 1234.' : 'The PIN is checked by the booking server.';
+  $('resetBtn').hidden = Store.mode !== 'demo';
+  if (Store.mode === 'live' && sessionStorage.getItem(KEY_TOKEN)) showAdminPanel();
+  else setTimeout(() => $('pinInput').focus(), 50);
+}
+$('pinForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  $('pinError').textContent = '';
+  let r;
+  try { r = await Store.managerLogin($('pinInput').value.trim()); } catch (err) { r = { ok: false, error: 'Could not reach the booking server.' }; }
+  if (!r.ok) { $('pinError').textContent = r.error; $('pinInput').select(); return; }
+  sessionStorage.setItem('EC_STUDIO_ADMIN', '1');
+  showAdminPanel();
+});
+function showAdminPanel() {
+  $('pinForm').hidden = true; $('adminPanel').hidden = false;
+  loadAdminDay();
+}
+async function loadAdminDay() {
+  $('dayPick').value = admin.day;
+  $('adminDayTitle').textContent = `${dayName(admin.day) === 'Today' || dayName(admin.day) === 'Tomorrow' ? dayName(admin.day) + ' · ' : ''}${longDate(admin.day)}`;
+  $('adminList').innerHTML = '<p class="muted">Loading…</p>';
+  try { admin.list = await Store.managerBookings(admin.day, admin.day); }
+  catch (err) {
+    sessionStorage.removeItem(KEY_TOKEN);
+    $('adminPanel').hidden = true; $('pinForm').hidden = false; $('pinError').textContent = err.message; return;
+  }
+  admin.list.sort((a, b) => toMin(a.time) - toMin(b.time) || a.barberName.localeCompare(b.barberName));
+  renderAdminList();
+}
+function renderAdminList() {
+  const live = admin.list.filter((b) => b.status !== 'Cancelled');
+  const total = live.reduce((a, b) => a + (Number(b.totalCost) || 0), 0);
+  $('adminStats').textContent = admin.list.length
+    ? `${live.length} booking${live.length === 1 ? '' : 's'} · ${money(total)} on the book${admin.list.length - live.length ? ` · ${admin.list.length - live.length} cancelled` : ''}`
+    : '';
+  if (!admin.list.length) { $('adminList').innerHTML = '<p class="empty">No bookings on this day.</p>'; return; }
+  $('adminList').innerHTML = admin.list.map((b) => {
+    const st = esc(b.status).replace(/\s+/g, '-');
+    const closed = ['Completed', 'Cancelled', 'No-Show'].includes(b.status);
+    return `<article class="bk ${b.status === 'Cancelled' ? 'cancelled' : ''}">
+      <div class="bk-time num">${fmtTime(b.time)}</div>
+      <div>
+        <div class="bk-name">${esc(b.clientName)} <span class="status ${st}">${esc(b.status)}</span></div>
+        <div class="bk-meta">${esc((b.services || []).join(' + '))} · ${fmtDur(Number(b.totalMin) || 0)} · ${money(Number(b.totalCost) || 0)}</div>
+        <div class="bk-meta">${esc(b.barberName)} · <a href="tel:${esc(digits(b.clientPhone))}">${esc(fmtPhone(b.clientPhone))}</a> · ${esc(b.refCode)}</div>
+        ${b.notes ? `<div class="bk-meta" style="font-style:italic">“${esc(b.notes)}”</div>` : ''}
+        <div class="bk-actions">
+          ${!closed ? `<button class="btn btn-sm" type="button" data-act="Completed" data-id="${esc(b.id)}" aria-label="Mark ${esc(b.clientName)} at ${fmtTime(b.time)} done">Mark done</button>` : ''}
+          ${b.status === 'Deposit Unpaid' ? `<button class="btn btn-sm" type="button" data-act="Paid" data-id="${esc(b.id)}">Mark deposit paid</button>` : ''}
+          ${!closed ? `<button class="link" type="button" data-act="Cancelled" data-id="${esc(b.id)}" aria-label="Cancel ${esc(b.clientName)} at ${fmtTime(b.time)}">Cancel</button>` : ''}
+          ${closed && b.status !== 'Completed' ? `<button class="link" type="button" data-act="Confirmed" data-id="${esc(b.id)}">Restore</button>` : ''}
+        </div>
+      </div>
+    </article>`;
+  }).join('');
+}
+$('adminList').addEventListener('click', async (e) => {
+  const btn = e.target.closest('[data-act]'); if (!btn) return;
+  const { act, id } = btn.dataset;
+  if (act === 'Cancelled') {
+    const b = admin.list.find((x) => x.id === id);
+    if (!confirm(`Cancel ${b.clientName} at ${fmtTime(b.time)}?`)) return;
+  }
+  btn.disabled = true;
+  const r = await Store.setStatus(id, act).catch(() => ({ ok: false, error: 'Could not reach the server.' }));
+  if (!r.ok) { alert(r.error); btn.disabled = false; return; }
+  const i = admin.list.findIndex((x) => x.id === id); admin.list[i] = r.booking;
+  bookedCache.clear();
+  renderAdminList();
+});
+$('dayPrev').addEventListener('click', () => { admin.day = addDays(admin.day, -1); loadAdminDay(); });
+$('dayNext').addEventListener('click', () => { admin.day = addDays(admin.day, 1); loadAdminDay(); });
+$('dayToday').addEventListener('click', () => { admin.day = todayStr(); loadAdminDay(); });
+$('dayPick').addEventListener('change', (e) => { if (e.target.value) { admin.day = e.target.value; loadAdminDay(); } });
+$('csvBtn').addEventListener('click', () => {
+  const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const lines = ['date,time,barber,client,phone,services,total,minutes,status,ref,notes'];
+  admin.list.forEach((b) => lines.push([b.date, b.time, b.barberName, b.clientName, b.clientPhone, (b.services || []).join(' + '), b.totalCost, b.totalMin, b.status, b.refCode, b.notes].map(cell).join(',')));
+  download(`bookings-${admin.day}.csv`, lines.join('\n') + '\n', 'text/csv');
+});
+$('resetBtn').addEventListener('click', () => {
+  if (!confirm('Clear all demo bookings and loyalty cards on this device?')) return;
+  [KEY_BOOKINGS, KEY_LOYALTY, KEY_SEEDED].forEach((k) => localStorage.removeItem(k));
+  seedDemo(); bookedCache.clear(); loadAdminDay();
+});
+
+/* =====================================================================
+   BOOT
+   ===================================================================== */
+seedDemo();
+renderSite();
+const params = new URLSearchParams(location.search);
+if (params.get('portal') === 'admin' || params.get('portal') === 'management') {
+  initAdmin();
+  if (Store.mode === 'demo' && sessionStorage.getItem('EC_STUDIO_ADMIN')) showAdminPanel();
+} else {
+  refreshNext();
+}
+</script>
+</body>
+</html>
