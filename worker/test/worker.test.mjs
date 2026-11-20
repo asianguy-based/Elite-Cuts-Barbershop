@@ -189,3 +189,12 @@ test('Manager PIN: 5 wrong tries lock the IP out, even for the right PIN', async
   env.DB.raw.exec("UPDATE login_attempts SET locked_until = '2000-01-01T00:00:00Z'");
   assert.equal((await call(env, 'POST', '/api/manager/login', { pin: '4321' }, ip)).status, 200, 'works again after the lock expires');
 });
+
+test('API root redirects browsers to the booking site', async () => {
+  const env = newEnv();
+  const res = await worker.fetch(new Request('https://api.test/'), env);
+  assert.equal(res.status, 302);
+  assert.equal(res.headers.get('location'), 'https://elite-cuts-4qn.pages.dev/');
+  const withVar = await worker.fetch(new Request('https://api.test/'), { ...env, SITE_URL: 'https://example.test/' });
+  assert.equal(withVar.headers.get('location'), 'https://example.test/');
+});

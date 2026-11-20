@@ -378,7 +378,11 @@ async function stripeWebhook(req, env) {
 }
 
 // ---------- router ----------
+const SITE_URL = 'https://elite-cuts-4qn.pages.dev/';
+
 const routes = [
+  // People who open the API address in a browser land on the booking site instead of a bare 404.
+  ['GET', /^\/?$/, (req, env) => Response.redirect(env.SITE_URL || SITE_URL, 302)],
   ['GET', /^\/api\/health$/, async (req, env) => {
     const r = await env.DB.prepare('SELECT COUNT(*) AS n FROM bookings').first();
     return json({ ok: true, time: nowIso(), bookings: r ? r.n : 0 });
