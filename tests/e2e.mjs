@@ -147,7 +147,9 @@ async function assertDemoMode(page) {
 async function shot(page, name) {
   if (!SHOTS) return;
   fs.mkdirSync(SHOTS, { recursive: true });
-  await page.waitForTimeout(350); // let fade-in animations settle
+  await page.waitForTimeout(700); // let fade-in animations and smooth scrolls settle
+  await page.evaluate(() => window.scrollTo({ top: 0, behavior: 'instant' }));
+  await page.waitForTimeout(100);
   await page.screenshot({ path: path.join(SHOTS, name + '.png'), fullPage: true });
 }
 const visible = (page, sel) => page.locator(sel).isVisible();
@@ -279,6 +281,18 @@ async function offlineSuite(browser, vp) {
       await page.reload({ waitUntil: 'load' });
       assert(await page.textContent('#headerShopName') === 'ELITE CUTS', 'header rendered offline');
       assert(await page.locator('#homeServicesList > div').count() === 4, 'app JS ran offline (services rendered)');
+      assert(await page.locator('#nextChairCard').isVisible(), 'next-chair card rendered offline');
+      assertIncludes(await page.evaluate(() => getComputedStyle(document.body).fontFamily), 'Inter', 'app stylesheet applied offline');
+      const swSrc = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+      const cacheName = (swSrc.match(/CACHE_NAME = '([^']+)'/) || [])[1];
+      const keys = await page.evaluate(() => caches.keys());
+      assert(keys.length === 1 && keys[0] === cacheName, `only the current cache (${cacheName}) exists, got ${JSON.stringify(keys)}`);
+      const shell = [...swSrc.match(/APP_SHELL = \[([\s\S]*?)\]/)[1].matchAll(/'([^']+)'/g)].map(m => m[1]);
+      const cached = await page.evaluate(async (files) => {
+        const c = await caches.open((await caches.keys())[0]);
+        return Promise.all(files.map(async f => !!(await c.match(new URL(f, location.href).href))));
+      }, shell);
+      assert(cached.every(Boolean), 'every APP_SHELL file is cached: ' + JSON.stringify(shell.filter((_, i) => !cached[i])));
       const pageErrors = errors.filter(e => e.startsWith('pageerror'));
       assert(pageErrors.length === 0, 'no page errors offline:\n' + pageErrors.join('\n'));
       assert(stats.liveHits === 0, 'no live Worker hits');
@@ -447,10 +461,21 @@ async function nextChairSuite(browser, vp) {
   });
 }
 
+async function shellSuite() {
+  await test('sw.js APP_SHELL lists every local css/js file and nothing missing', async () => {
+    const swSrc = fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8');
+    const shell = [...swSrc.match(/APP_SHELL = \[([\s\S]*?)\]/)[1].matchAll(/'([^']+)'/g)].map(m => m[1].replace(/^\.\//, ''));
+    for (const f of shell.filter(Boolean)) assert(fs.existsSync(path.join(ROOT, f)), `APP_SHELL entry exists: ${f}`);
+    const local = ['css', 'js'].flatMap(d => fs.existsSync(path.join(ROOT, d)) ? fs.readdirSync(path.join(ROOT, d)).map(f => `${d}/${f}`) : []);
+    for (const f of local) assert(shell.includes(f), `${f} is in APP_SHELL`);
+  });
+}
+
 // ---------------------------------------------------------------- main
 await startServer();
 const browser = await chromium.launch();
 try {
+  await shellSuite();
   for (const vp of VIEWPORTS) {
     await coreSuite(browser, vp);
     await nextChairSuite(browser, vp);

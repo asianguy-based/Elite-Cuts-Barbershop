@@ -1,8 +1,18 @@
-const CACHE_NAME = 'elite-cuts-h5-v1.1.0';
+const CACHE_NAME = 'elite-cuts-h5-v1.2.0';
+// Every same-origin file the app needs to boot offline. Add new css/js files here and bump CACHE_NAME.
 const APP_SHELL = [
   './',
   './index.html',
-  './manifest.json'
+  './manifest.json',
+  './css/app.css',
+  './js/main.js',
+  './js/config.js',
+  './js/api.js',
+  './js/storage.js',
+  './js/booking.js',
+  './js/loyalty.js',
+  './js/admin.js',
+  './js/ui.js'
 ];
 // Cross-origin CDN assets (Tailwind, Font Awesome, Google Fonts) are NOT pre-cached:
 // cache.addAll() rejects on any opaque/failed response. They get cached on first fetch below.

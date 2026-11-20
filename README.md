@@ -20,11 +20,33 @@ A turnkey, zero-dependency **Progressive Web App (PWA)** built for independent b
 ## 🚀 Quick Deployment Guide
 
 1. Clone or download this repository.
-2. Drop `index.html`, `manifest.json`, and `sw.js` into your root directory.
-3. Deploy the folder instantly to **Cloudflare Pages** or **Vercel** with zero build commands required.
+2. Deploy the repo root folder as-is: `index.html`, `manifest.json`, `sw.js`, plus the `css/` and `js/` folders. Keep the folder structure; the page loads its styles and scripts from those relative paths.
+3. Deploy the folder instantly to **Cloudflare Pages** or **Vercel** with zero build commands required. (Serve it over http(s); the app uses ES modules, so double-clicking `index.html` from disk won't boot it. For a quick local look, run `python3 -m http.server` in the folder.)
 4. Access your client storefront at `https://your-domain.com` and your manager portal at `https://your-domain.com/?portal=admin`.
 
 Without a backend the app runs in **demo mode**: bookings, loyalty, and settings exist only in the browser that created them.
+
+### 🗂️ File Layout
+
+Still zero-build: plain HTML, CSS, and native ES modules, no bundler.
+
+```
+index.html        markup only (+ Tailwind / Font Awesome / Google Fonts CDNs)
+manifest.json     PWA manifest
+sw.js             service worker; APP_SHELL lists every file cached for offline use
+css/app.css       theme variables and custom styles
+js/main.js        entry point: boots the app, registers sw.js, exposes inline onclick handlers on window
+js/config.js      DEFAULT_CONFIG (services, barbers, time slots, deposit) + saved tenant settings
+js/api.js         Worker API wrapper (demo mode when no API URL is set)
+js/storage.js     bookings, loyalty DB, on-device LoyaltyVault
+js/booking.js     4-step booking wizard, time slots, "Next open chair" card, .ics / SMS receipts
+js/loyalty.js     VIP wallet lookup and punch card
+js/admin.js       manager portal: queue, barber folders, CSV, white-label settings
+js/ui.js          theme, home + lookbook rendering, tabs, PWA install banner
+tests/e2e.mjs     Playwright regression suite (`node tests/e2e.mjs`; never touches the live API)
+```
+
+If you add a CSS or JS file, add it to `APP_SHELL` in `sw.js` and bump `CACHE_NAME` so installed apps pick it up.
 
 ---
 
@@ -48,7 +70,7 @@ Endpoints: `GET /api/health`, `GET /api/slots?date=&barberId=`, `POST /api/booki
 
 **Privacy note:** `GET /api/loyalty?phone=` returns points/stamps/recent visits to anyone who knows the phone number. That matches what the current app already exposes (the loyalty tab is a phone lookup), but if you need more, put the Worker behind Cloudflare Access or add an SMS check.
 
-**Static deploy:** the front end stays a plain static site. Deploy the repo root (`index.html`, `manifest.json`, `sw.js`) to Cloudflare Pages with no build step; the Worker is deployed separately from `worker/`.
+**Static deploy:** the front end stays a plain static site. Deploy the repo root (`index.html`, `manifest.json`, `sw.js`, `css/`, `js/`) to Cloudflare Pages with no build step; the Worker is deployed separately from `worker/`.
 
 **Repo note:** `Elite-Cuts-Barbershop.rar` and `Elite-Cuts-Barbershop.txt` describe an older layout (`h5-webapp/` + `wordpress-theme/`); the live app is the flat set of files in the repo root.
 
