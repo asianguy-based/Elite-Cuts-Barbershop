@@ -9,9 +9,11 @@ binding = "BOOKINGS"
 id = "356156f8bbf84f5580d54202fb427f70"
 
 [vars]
-# Origin of the static Pages site allowed to call this API. "*" allows any origin.
-ALLOWED_ORIGIN = "*"
+# Browser origins allowed to call this API (comma-separated). "https://*.x" also matches
+# preview deploys like https://abc123.x. Add your custom domain here if you add one. "*" = any.
+ALLOWED_ORIGIN = "https://elite-cuts-4qn.pages.dev,https://*.elite-cuts-4qn.pages.dev"
 
 # Secrets (NOT stored here — set with `npx wrangler secret put <NAME>`):
 #   MANAGER_PIN            required — PIN for /api/manager/login
-#   STRIPE_WEBHOOK_SECRET  optional — enables signature checks on /api/webhook/stripe
+#   STRIPE_WEBHOOK_SECRET  recommended — verifies signatures on /api/webhook/stripe
+#   STRIPE_SECRET_KEY      fallback — webhook re-checks the session with Stripe when no webhook secret
