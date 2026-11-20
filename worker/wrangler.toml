@@ -2,16 +2,18 @@ name = "elite-cuts-api"
 main = "src/index.js"
 compatibility_date = "2025-10-01"
 
-# Create the namespace once, then paste the returned id below:
-#   npx wrangler kv namespace create BOOKINGS
-[[kv_namespaces]]
-binding = "BOOKINGS"
-id = "356156f8bbf84f5580d54202fb427f70"
+# Storage: one D1 (SQLite) database. First-time setup for a new shop:
+#   npx wrangler d1 create elite-cuts                        # paste the printed database_id below
+#   npx wrangler d1 execute elite-cuts --remote --file=schema.sql
+[[d1_databases]]
+binding = "DB"
+database_name = "elite-cuts"
+database_id = "58a73f46-b18a-4209-a919-063a31aa4ca6"
 
 [vars]
 # Browser origins allowed to call this API (comma-separated). "https://*.x" also matches
 # preview deploys like https://abc123.x. Add your custom domain here if you add one. "*" = any.
-ALLOWED_ORIGIN = "https://elite-cuts-4qn.pages.dev,https://*.elite-cuts-4qn.pages.dev"
+ALLOWED_ORIGINS = "https://elite-cuts-4qn.pages.dev,https://*.elite-cuts-4qn.pages.dev"
 
 # Secrets (NOT stored here — set with `npx wrangler secret put <NAME>`):
 #   MANAGER_PIN            required — PIN for /api/manager/login
