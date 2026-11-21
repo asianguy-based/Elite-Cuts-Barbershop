@@ -12,6 +12,7 @@ import {
   importLoyaltyCSV, openAdminModal, removeBarber, resetDemoData, saveWhiteLabelConfig, unlockAdmin,
   updateBookingStatus
 } from './admin.js';
+import { initAppUpdates } from './update.js';
 import {
   applyThemeVariables, dismissPWABanner, listenForInstallPrompt, renderHome, selectLookbookStyle,
   closeInstallHelp, openInstallApp, showIOSInstallHint, switchTab, triggerPWAInstall
@@ -57,9 +58,8 @@ loadSharedSettings().then(result => {
 
 // PWA INSTALL & PORTAL ROUTER (?tab=..., ?portal=admin)
 window.addEventListener('load', () => {
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').catch(err => console.warn('SW setup skipped:', err));
-  }
+  // Registers sw.js and shows the "UPDATE: what changed [OK]" popup when a new version is deployed.
+  initAppUpdates().catch(err => console.warn('SW setup skipped:', err));
 
   const params = new URLSearchParams(window.location.search);
   const targetTab = params.get('tab');
