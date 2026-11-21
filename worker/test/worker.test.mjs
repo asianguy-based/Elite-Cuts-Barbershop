@@ -4,16 +4,21 @@
 // so the same constraints that protect production are exercised here.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import worker, { verifyStripeSignature, hmacHex, cors, clientKey } from '../src/index.js';
 
 const schema = readFileSync(new URL('../schema.sql', import.meta.url), 'utf8');
+// Live databases get schema.sql once, then each migration in order (wrangler d1 migrations apply): do the same.
+const migrationsDir = new URL('../migrations/', import.meta.url);
+const migrations = readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')).sort()
+  .map((f) => readFileSync(new URL(f, migrationsDir), 'utf8'));
 
 function makeD1() {
   const db = new DatabaseSync(':memory:');
   db.exec('PRAGMA foreign_keys = ON;');
   db.exec(schema);
+  migrations.forEach((m) => db.exec(m));
   const stmt = (sql, args = []) => ({
     bind: (...a) => stmt(sql, a),
     first: async () => db.prepare(sql).get(...args) ?? null,

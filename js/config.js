@@ -18,6 +18,11 @@ export const DEFAULT_CONFIG = {
   paymentLinkUrl: '',
   apiBaseUrl: 'https://elite-cuts-api.voxlibera.workers.dev',
   requireDeposit: false,
+  // Online payment options (Stripe Checkout through the Worker). Each shows only when the API says it works.
+  depositEnabled: true,
+  prepayEnabled: true,
+  walletEnabled: true,
+  walletTopUps: [25, 50, 100],
   // Client reviews shown on the home screen. While reviewsAreSamples is true the app labels them
   // "Sample reviews", so a demo never passes made-up quotes off as real ones. A shop swaps in its
   // own reviews from the manager portal and turns the label off.
@@ -54,8 +59,8 @@ export function saveConfig() {
 // SETTINGS_FIELDS in worker/src/index.js (the server rejects any other key).
 export const SHARED_FIELDS = [
   'shopName', 'tagline', 'phone', 'address', 'primaryColor', 'accentColor', 'depositAmount',
-  'requireDeposit', 'paymentLinkUrl', 'reviewsAreSamples', 'reviews', 'services', 'barbers',
-  'lookbook', 'timeSlots'
+  'requireDeposit', 'paymentLinkUrl', 'depositEnabled', 'prepayEnabled', 'walletEnabled', 'walletTopUps',
+  'reviewsAreSamples', 'reviews', 'services', 'barbers', 'lookbook', 'timeSlots'
 ];
 
 /** The shared part of a config object, ready to publish. */

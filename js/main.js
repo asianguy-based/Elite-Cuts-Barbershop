@@ -1,14 +1,14 @@
 // Entry point: wires the modules together, exposes inline-handler globals, boots the app.
-import { loadSharedSettings } from './api.js';
+import { loadPaymentsInfo, loadSharedSettings } from './api.js';
 import {
-  bookNextChair, downloadICS, goToBookingStep, pickAnotherTime, quickBookBarber, quickBookService,
-  renderBookingStep1, renderBookingStep2, renderTimeSlots, resetBookingFlow, resetSlotCaches, selectBarber,
+  PENDING_PAYMENT_KEY, bookNextChair, downloadICS, goToBookingStep, pickAnotherTime, quickBookBarber, quickBookService,
+  currentBooking, renderBookingStep1, renderBookingStep2, renderTimeSlots, resetBookingFlow, resetSlotCaches, selectBarber,
   selectPaymentMode, selectTimeSlot, sendSMSConfirmation, submitBooking, syncBookingWithConfig,
   toggleServiceSelection, updateBookingTotals
 } from './booking.js';
-import { lookupLoyalty } from './loyalty.js';
+import { loadWalletBalance, lookupLoyalty, renderWalletCard, topUpWallet } from './loyalty.js';
 import {
-  addNewBarberWithFolder, clearCompletedBookings, closeAdminModal, exportConfigJSON, exportLoyaltyCSV,
+  addNewBarberWithFolder, adminAddWalletCredit, adminResetWalletPin, clearCompletedBookings, closeAdminModal, exportConfigJSON, exportLoyaltyCSV,
   importLoyaltyCSV, openAdminModal, removeBarber, resetDemoData, saveWhiteLabelConfig, unlockAdmin,
   updateBookingStatus
 } from './admin.js';
@@ -26,10 +26,10 @@ Object.assign(window, {
   bookNextChair, downloadICS, goToBookingStep, pickAnotherTime, quickBookBarber, quickBookService,
   renderTimeSlots, resetBookingFlow, selectBarber, selectPaymentMode, selectTimeSlot,
   sendSMSConfirmation, submitBooking, toggleServiceSelection,
-  // loyalty
-  lookupLoyalty,
+  // loyalty + VIP wallet credit
+  loadWalletBalance, lookupLoyalty, topUpWallet,
   // manager portal
-  addNewBarberWithFolder, clearCompletedBookings, closeAdminModal, exportConfigJSON, exportLoyaltyCSV,
+  addNewBarberWithFolder, adminAddWalletCredit, adminResetWalletPin, clearCompletedBookings, closeAdminModal, exportConfigJSON, exportLoyaltyCSV,
   importLoyaltyCSV, removeBarber, resetDemoData, saveWhiteLabelConfig, unlockAdmin, updateBookingStatus,
   // tabs, lookbook, PWA banner + Install app footer
   closeInstallHelp, dismissPWABanner, openInstallApp, selectLookbookStyle, switchTab, triggerPWAInstall
@@ -44,6 +44,7 @@ listenForInstallPrompt();
 // every client sees the same shop. The first paint uses the cached copy; this refreshes it.
 loadSharedSettings().then(result => {
   if (!result || !result.changed) return;
+  renderWalletCard();
   syncBookingWithConfig();
   resetSlotCaches();
   applyThemeVariables();
@@ -56,6 +57,48 @@ loadSharedSettings().then(result => {
   }
 });
 
+// Online payments: which options the Worker can take (Stripe test key set, options switched on).
+loadPaymentsInfo().then(() => {
+  renderWalletCard();
+  if (!document.getElementById('view-book').classList.contains('hidden') &&
+      !document.getElementById('bookStep4').classList.contains('hidden')) {
+    selectPaymentMode(currentBooking.paymentMode);
+  }
+});
+
+/** Back from Stripe Checkout: ?paid=REF, ?payment=cancelled&ref=REF, ?topup=ok|cancelled. */
+function handlePaymentReturn(params) {
+  let pending = null;
+  try { pending = JSON.parse(sessionStorage.getItem(PENDING_PAYMENT_KEY) || 'null'); } catch (err) { pending = null; }
+  const ref = params.get('paid') || params.get('ref') || '';
+  if (params.get('paid')) {
+    try { sessionStorage.removeItem(PENDING_PAYMENT_KEY); } catch (err) { /* ignore */ }
+    if (pending && pending.phone) {
+      document.getElementById('loyaltyLookupPhone').value = pending.phone;
+      setTimeout(lookupLoyalty, 2500);   // give Stripe's webhook a moment to mark the booking paid
+    }
+    alert(`Thanks! Your payment for ${ref} went through and your chair is booked. It shows as Paid in your VIP Wallet in a moment.`);
+  } else if (params.get('payment') === 'cancelled') {
+    const retry = pending && pending.refCode === ref && pending.checkoutUrl;
+    if (retry && confirm(`Payment for ${ref} wasn't finished. Your chair is held for about 30 minutes. Go back to the payment page?`)) {
+      window.location.assign(pending.checkoutUrl);
+      return true;
+    }
+    if (!retry) alert(`Payment for ${ref} wasn't finished. Your chair is held for about 30 minutes, then released.`);
+  } else if (params.get('topup') === 'ok') {
+    let phone = '';
+    try { phone = sessionStorage.getItem('EC_WALLET_PHONE') || ''; } catch (err) { /* ignore */ }
+    if (phone) document.getElementById('loyaltyLookupPhone').value = phone;
+    alert('Thanks! Your wallet top-up went through. Enter your PIN and tap Check Balance to see it.');
+  } else if (params.get('topup') === 'cancelled') {
+    alert('Top-up cancelled. Nothing was charged.');
+  } else {
+    return false;
+  }
+  window.history.replaceState({}, document.title, window.location.pathname + (params.get('tab') ? `?tab=${encodeURIComponent(params.get('tab'))}` : ''));
+  return false;
+}
+
 // PWA INSTALL & PORTAL ROUTER (?tab=..., ?portal=admin)
 window.addEventListener('load', () => {
   // Registers sw.js and shows the "UPDATE: what changed [OK]" popup when a new version is deployed.
@@ -66,6 +109,7 @@ window.addEventListener('load', () => {
   if (targetTab && ['home', 'book', 'loyalty', 'gallery'].includes(targetTab)) {
     switchTab(targetTab);
   }
+  if (handlePaymentReturn(params)) return;
 
   if (params.get('portal') === 'admin' || params.get('portal') === 'management') {
     setTimeout(() => {

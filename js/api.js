@@ -60,3 +60,18 @@ export async function publishSharedSettings(cfg) {
   applySharedSettings(res.data.settings);
   return { ok: true };
 }
+
+// ONLINE PAYMENTS. What the Worker can take right now (Stripe test key set? which options on?).
+// null = demo mode or API unreachable: only the old deposit link and pay-at-chair are offered.
+export let paymentsInfo = null;
+export async function loadPaymentsInfo() {
+  if (!apiConfigured()) { paymentsInfo = null; return null; }
+  try {
+    const res = await api('/api/payments');
+    paymentsInfo = res && res.ok && res.data && typeof res.data === 'object' ? res.data : null;
+  } catch (err) {
+    console.warn('Payments info fetch failed:', err);
+    paymentsInfo = null;
+  }
+  return paymentsInfo;
+}
