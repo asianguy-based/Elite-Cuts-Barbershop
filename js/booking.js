@@ -353,6 +353,11 @@ export async function submitBooking() {
   const name = document.getElementById('clientName').value.trim();
   const phone = document.getElementById('clientPhone').value.trim();
   const notes = document.getElementById('clientNotes').value.trim();
+  const email = (document.getElementById('clientEmail')?.value || '').trim();
+  if (email && !/^[^\s@<>()",;:]+@[^\s@<>()",;:]+\.[A-Za-z]{2,}$/.test(email)) {
+    alert('That email address does not look right. Fix it or leave it empty.');
+    return;
+  }
 
   if (!name || !phone) {
     alert('Please enter your name and mobile phone number to reserve your chair.');
@@ -402,6 +407,7 @@ export async function submitBooking() {
           barberId: barber.id, barberName: barber.name,
           date: currentBooking.date, time: currentBooking.time,
           clientName: name, clientPhone: phone, notes,
+          ...(email ? { clientEmail: email } : {}),
           paymentMode: mode,
           depositAmount: isDeposit ? depositAmount() : 0,
           ...(walletPin ? { walletPin } : {})

@@ -13,7 +13,14 @@
  *   POST  /api/manager/login   { pin }                       -> { token, expiresAt }
  *   POST  /api/manager/logout                                -> { ok }                   (X-Manager-Token)
  *   GET   /api/manager/bookings?from&to                      -> { bookings, from, to }   (X-Manager-Token)
- *   PATCH /api/manager/bookings/:id { status }               -> { booking }              (X-Manager-Token)
+ *   PATCH /api/manager/bookings/:id { status }               -> { booking, creditReturned?, email? } (X-Manager-Token)
+ *   POST  /api/manager/bookings/clear-cancelled              -> { cleared }  hides cancelled bookings from the queue
+ *   POST  /api/reviews          { name, stars, text }        -> 201 { ok }  a client leaves a review (not shown until ticked)
+ *   GET   /api/manager/reviews                               -> { reviews, unread }     (X-Manager-Token)
+ *   POST  /api/manager/reviews  { name, stars, text, shown } -> { review, settings }    the manager adds one
+ *   PATCH /api/manager/reviews/:id { shown }                 -> { review, settings }    ticked reviews are published
+ *   DELETE /api/manager/reviews/:id                          -> { ok, settings }        (X-Manager-Token)
+ *   POST  /api/manager/reviews/read                          -> { ok }  marks every review as read
  *   GET   /api/manager/loyalty.csv                           -> text/csv                 (X-Manager-Token)
  *   GET   /api/manager/report?from&to                        -> { rows }   (new: per-day, per-barber totals)
  *   GET   /api/shop                                          -> { settings, updatedAt }  (public shop profile)
@@ -37,6 +44,9 @@
  *            when there is no webhook secret.
  *          STRIPE_WEBHOOK_SECRET (recommended) — verifies Stripe webhook signatures
  *            With neither secret, webhooks are refused.
+ *          RESEND_API_KEY (optional) — sends the "your credit is back" email through Resend (resend.com).
+ *            Needs the var EMAIL_FROM too, e.g. "Elite Cuts <bookings@elite-cuts-barbershop.app>", on a domain
+ *            verified in Resend. Without both, no email is sent and the manager is told so.
  * Vars:    ALLOWED_ORIGINS  comma-separated allow-list of browser origins; "https://*.example.pages.dev"
  *                           also matches preview subdomains; "*" allows any (also reads ALLOWED_ORIGIN)
  */
@@ -59,7 +69,10 @@ const CHECKOUT_MINUTES = 31;       // Stripe's minimum Checkout lifetime is 30 m
 const WALLET_MIN_TOPUP = 5, WALLET_MAX_TOPUP = 500;   // whole dollars per top-up
 const WALLET_PIN = /^\d{4,6}$/;
 const WALLET_PER_HOUR = 30;        // wallet balance checks / top-ups per client address per hour
-const WALLET_PIN_MAX_FAILS = 5;    // wrong wallet PINs per phone before a lockout
+const WALLET_PIN_MAX_FAILS = 5;
+const REVIEWS_PER_HOUR = 3;        // reviews a client address may leave per hour
+const MAX_REVIEWS_SHOWN = 50;      // the published settings hold at most this many (same cap as the validator)
+const EMAIL_RE = /^[^\s@<>()",;:]+@[^\s@<>()",;:]+\.[A-Za-z]{2,}$/;    // wrong wallet PINs per phone before a lockout
 const PBKDF2_ITERATIONS = 100000;  // the most Workers' WebCrypto allows
 const enc = new TextEncoder();
 
@@ -69,6 +82,7 @@ export const json = (data, status = 200, headers = {}) =>
 
 const today = () => new Date().toISOString().slice(0, 10);
 export const normalizePhone = (p) => String(p || '').replace(/\D/g, '');
+export const isEmail = (s) => typeof s === 'string' && s.length <= 120 && EMAIL_RE.test(s.trim());
 export const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || '') && !Number.isNaN(Date.parse(s + 'T00:00:00Z'));
 const hex = (buf) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
 const nowIso = () => new Date().toISOString();
@@ -157,7 +171,7 @@ export function cors(req, env) {
   const list = allowedOrigins(env);
   const origin = req.headers.get('Origin');
   const base = {
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, X-Manager-Token',
     'Access-Control-Max-Age': '86400',
     'Vary': 'Origin'
@@ -388,7 +402,34 @@ async function managerPutShop(req, env) {
     `INSERT INTO shop_settings (id, data, updated_at) VALUES (1, ?1, ?2)
      ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`
   ).bind(data, updatedAt).run();
+  if (Array.isArray(settings.reviews)) {
+    // An older app (or a settings backup) sent the whole published list: keep the Client Reviews log in step.
+    await syncReviewLog(env, settings.reviews);
+    const published = await publishShownReviews(env);
+    return json({ settings: published, updatedAt });
+  }
   return json({ settings: merged, updatedAt });
+}
+
+/** Make the log's ticked reviews match a published list: new ones are added ticked, missing ones unticked (kept). */
+async function syncReviewLog(env, list) {
+  const key = (r) => `${r.name}\u0000${r.stars}\u0000${r.text}`;
+  const wanted = new Set(list.map(key));
+  const { results } = await env.DB.prepare('SELECT id, name, stars, text, shown FROM reviews').all();
+  const have = new Set(results.map(key));
+  const now = nowIso();
+  const stmts = [];
+  for (const r of results) {
+    const keep = wanted.has(key(r)) ? 1 : 0;
+    if (keep !== r.shown) stmts.push(env.DB.prepare('UPDATE reviews SET shown = ?1 WHERE id = ?2').bind(keep, r.id));
+  }
+  for (const r of list) {
+    if (have.has(key(r))) continue;
+    have.add(key(r));
+    stmts.push(env.DB.prepare(`INSERT INTO reviews (name, stars, text, source, shown, read_at) VALUES (?1, ?2, ?3, 'manager', 1, ?4)`)
+      .bind(r.name, r.stars, r.text, now));
+  }
+  if (stmts.length) await env.DB.batch(stmts);
 }
 
 // ---------- route handlers ----------
@@ -419,6 +460,7 @@ export function validateBooking(body) {
   if (String(body.barberName).length > 80) return 'barberName is too long';
   if (!PAY_OPTIONS.includes(body.paymentMode)) return 'paymentMode must be deposit, prepay, wallet or chair';
   if (!normalizePhone(body.clientPhone)) return 'clientPhone must contain digits';
+  if (body.clientEmail != null && body.clientEmail !== '' && !isEmail(body.clientEmail)) return 'clientEmail does not look like an email address';
   return null;
 }
 
@@ -477,6 +519,7 @@ async function createBooking(req, env) {
   const phone = normalizePhone(body.clientPhone);
   const clientName = String(body.clientName).slice(0, 120);
   const clientPhone = String(body.clientPhone).slice(0, 40);
+  const clientEmail = body.clientEmail ? String(body.clientEmail).trim() : '';
   const id = `${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 8)}`;
   const createdAt = nowIso();
 
@@ -488,11 +531,12 @@ async function createBooking(req, env) {
     const refCode = 'EC-' + String(Math.floor(1000 + Math.random() * 9000)) + (attempt > 2 ? String(attempt) : '');
     const stmts = [
       env.DB.prepare(
-        `INSERT INTO customers (phone, name, phone_raw, last_visit) VALUES (?1, ?2, ?3, ?4)
+        `INSERT INTO customers (phone, name, phone_raw, last_visit, email) VALUES (?1, ?2, ?3, ?4, ?5)
          ON CONFLICT(phone) DO UPDATE SET name = excluded.name, phone_raw = excluded.phone_raw,
            last_visit = MAX(COALESCE(last_visit, ''), excluded.last_visit),
+           email = CASE WHEN excluded.email <> '' THEN excluded.email ELSE email END,
            updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`
-      ).bind(phone, clientName, clientPhone, body.date),
+      ).bind(phone, clientName, clientPhone, body.date, clientEmail),
       env.DB.prepare(
         `INSERT INTO bookings (id, ref_code, customer_phone, client_name, client_phone, services, total_cost, total_min,
            barber_id, barber_name, date, time, notes, payment_mode, deposit_amount, status, paid, created_at,
@@ -866,7 +910,7 @@ const rangeFrom = (url) => ({
 async function managerBookings(url, env) {
   const { from, to } = rangeFrom(url);
   const { results } = await env.DB.prepare(
-    `SELECT * FROM bookings WHERE date BETWEEN ?1 AND ?2 ORDER BY created_at DESC LIMIT 500`
+    `SELECT * FROM bookings WHERE date BETWEEN ?1 AND ?2 AND cleared_at IS NULL ORDER BY created_at DESC LIMIT 500`
   ).bind(from, to).all();
   return json({ bookings: results.map(rowToBooking), from, to });
 }
@@ -877,11 +921,20 @@ async function managerPatchBooking(req, env, id) {
   const booking = await getBooking(env, id);
   if (!booking) return json({ error: 'Booking not found' }, 404);
   if (body.status === 'Paid' && booking.paymentMode === 'deposit') await markPaid(env, id);
+  // A booking paid from the VIP wallet goes back on the wallet when it's cancelled (once per booking).
+  // Card payments (deposit / prepay) are refunded by the shop in the Stripe dashboard.
+  let refund = null;
+  if (body.status === 'Cancelled' && booking.payOption === 'wallet') {
+    const spend = await env.DB.prepare(`SELECT phone, -amount_cents AS cents FROM wallet_ledger WHERE booking_id = ? AND kind = 'spend'`).bind(id).first();
+    const done = await env.DB.prepare(`SELECT 1 AS x FROM wallet_ledger WHERE booking_id = ? AND kind = 'refund'`).bind(id).first();
+    if (spend && !done && spend.cents > 0) refund = spend;
+  }
   try {
     const stmts = [env.DB.prepare('UPDATE bookings SET status = ?1, updated_at = ?2 WHERE id = ?3').bind(body.status, nowIso(), id)];
-    if (body.status === 'Cancelled' && booking.payOption === 'wallet') {
-      // A booking paid from the VIP wallet goes back on the wallet when it's cancelled (once per booking).
-      // Card payments (deposit / prepay) are refunded by the shop in the Stripe dashboard.
+    if (refund) {
+      // Once the credit is back, the client's phone number comes off this (cancelled) appointment. The wallet,
+      // its balance and the loyalty record stay; only the copy of the number shown on the booking is removed.
+      stmts.push(env.DB.prepare(`UPDATE bookings SET client_phone = '' WHERE id = ?1`).bind(id));
       stmts.push(env.DB.prepare(
         `INSERT OR IGNORE INTO wallet_ledger (phone, kind, amount_cents, booking_id, note)
          SELECT phone, 'refund', -amount_cents, booking_id, note FROM wallet_ledger WHERE booking_id = ?1 AND kind = 'spend'`
@@ -900,7 +953,62 @@ async function managerPatchBooking(req, env, id) {
     if (isSlotConflict(err)) return json({ error: 'That slot has been re-booked by someone else' }, 409);
     throw err;
   }
-  return json({ booking: await getBooking(env, id) });
+  const out = { booking: await getBooking(env, id) };
+  if (refund) {
+    out.creditReturned = refund.cents / 100;
+    out.email = await sendCreditBackEmail(env, booking, refund);
+  }
+  return json(out);
+}
+
+/** Hide every cancelled booking from the manager's queue (rows are kept: ledgers point at them). */
+async function managerClearCancelled(env) {
+  const r = await env.DB.prepare(`UPDATE bookings SET cleared_at = ?1 WHERE status = 'Cancelled' AND cleared_at IS NULL`).bind(nowIso()).run();
+  return json({ cleared: (r.meta && r.meta.changes) || 0 });
+}
+
+// ---------- email (credit back on the VIP wallet) ----------
+/**
+ * Send one email through Resend. Returns 'sent', 'not_configured' (no RESEND_API_KEY / EMAIL_FROM),
+ * 'no_address' or 'failed'. Never throws: a failed email must not undo the cancellation.
+ */
+export async function sendEmail(env, { to, subject, text }) {
+  if (!env.RESEND_API_KEY || !env.EMAIL_FROM) return 'not_configured';
+  if (!isEmail(to)) return 'no_address';
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: env.EMAIL_FROM, to: [to.trim()], subject, text })
+    });
+    return res.ok ? 'sent' : 'failed';
+  } catch (err) {
+    console.error('email failed', err);
+    return 'failed';
+  }
+}
+
+async function sendCreditBackEmail(env, booking, refund) {
+  if (!env.RESEND_API_KEY || !env.EMAIL_FROM) return 'not_configured';
+  const customer = await env.DB.prepare('SELECT email, name FROM customers WHERE phone = ?').bind(refund.phone).first();
+  if (!customer || !customer.email) return 'no_address';
+  const { settings } = await loadShopSettings(env);
+  const shopName = String((settings && settings.shopName) || 'Elite Cuts');
+  const balance = (await walletBalanceCents(env, refund.phone)) / 100;
+  const amount = (refund.cents / 100).toFixed(2);
+  return sendEmail(env, {
+    to: customer.email,
+    subject: `${shopName}: $${amount} is back in your VIP wallet`,
+    text: [
+      `Hi ${booking.clientName || customer.name || 'there'},`,
+      '',
+      `Your appointment ${booking.refCode} on ${booking.date} at ${booking.time} was cancelled, and the $${amount} you paid from your VIP wallet is back on your wallet.`,
+      `Your wallet balance is now $${balance.toFixed(2)}. You can use it on your next booking.`,
+      'Your phone number has been taken off the cancelled appointment.',
+      '',
+      shopName
+    ].join('\n')
+  });
 }
 
 /** Points = sum of the ledger; stamps = awards mod 11 (same 10-cut punch card as the KV version). */
@@ -943,7 +1051,7 @@ async function getLoyalty(req, url, env) {
   const rec = await env.DB.prepare(`${LOYALTY_SQL} WHERE c.phone = ? GROUP BY c.phone`).bind(phone).first();
   const { results } = await env.DB.prepare(
     `SELECT date, time, services, barber_name, ref_code, status FROM bookings
-     WHERE customer_phone = ? ORDER BY date DESC, created_at DESC LIMIT 10`
+     WHERE customer_phone = ? AND client_phone <> '' ORDER BY date DESC, created_at DESC LIMIT 10`
   ).bind(phone).all();
   const history = results.map((r) => ({
     date: r.date, time: r.time, services: JSON.parse(r.services), barberName: r.barber_name, refCode: r.ref_code, status: r.status
@@ -1030,6 +1138,93 @@ async function stripeWebhook(req, env) {
   return json({ received: true });
 }
 
+// ---------- client reviews ----------
+// Every review is logged in the reviews table. The ones the manager ticks (shown = 1) are copied into the
+// published shop settings, which is what the home screen reads, so clients never see an unticked review.
+
+/** Returns { review } cleaned, or { error }. */
+export function validateReview(body) {
+  if (!body || typeof body !== 'object') return { error: 'Send the review as a JSON object' };
+  try {
+    return { review: {
+      name: text(body.name, 'name', 60) || 'Client',
+      stars: num(Math.round(Number(body.stars)), 'stars', 1, 5, { int: true }),
+      text: text(body.text, 'text', 600, { required: true })
+    } };
+  } catch (err) {
+    if (err instanceof SettingsError) return { error: err.message };
+    throw err;
+  }
+}
+
+const rowToReview = (r) => r && ({
+  id: r.id, name: r.name, stars: r.stars, text: r.text, source: r.source,
+  shown: !!r.shown, read: !!r.read_at, createdAt: r.created_at
+});
+
+/** Copy the ticked reviews into the published settings. Returns the new settings. */
+async function publishShownReviews(env) {
+  const { results } = await env.DB.prepare(
+    `SELECT name, stars, text FROM reviews WHERE shown = 1 ORDER BY created_at DESC, id ASC LIMIT ?1`
+  ).bind(MAX_REVIEWS_SHOWN).all();
+  const current = (await loadShopSettings(env)).settings || {};
+  const merged = { ...current, reviews: results.map((r) => ({ name: r.name, stars: r.stars, text: r.text })) };
+  await env.DB.prepare(
+    `INSERT INTO shop_settings (id, data, updated_at) VALUES (1, ?1, ?2)
+     ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`
+  ).bind(JSON.stringify(merged), nowIso()).run();
+  return merged;
+}
+
+async function createReview(req, env) {
+  const { review, error } = validateReview(await readBody(req));
+  if (error) return json({ error }, 400);
+  const limited = await rateLimit(env, `review:${clientKey(req)}`, REVIEWS_PER_HOUR, 3600);
+  if (limited) return limited;
+  await env.DB.prepare(`INSERT INTO reviews (name, stars, text, source, shown) VALUES (?1, ?2, ?3, 'client', 0)`)
+    .bind(review.name, review.stars, review.text).run();
+  return json({ ok: true }, 201);
+}
+
+async function managerReviews(env) {
+  const { results } = await env.DB.prepare('SELECT * FROM reviews ORDER BY created_at DESC, id ASC LIMIT 500').all();
+  const reviews = results.map(rowToReview);
+  return json({ reviews, unread: reviews.filter((r) => !r.read).length });
+}
+
+async function managerAddReview(req, env) {
+  const body = await readBody(req);
+  const { review, error } = validateReview(body);
+  if (error) return json({ error }, 400);
+  const shown = !body || body.shown !== false;
+  const row = await env.DB.prepare(
+    `INSERT INTO reviews (name, stars, text, source, shown, read_at) VALUES (?1, ?2, ?3, 'manager', ?4, ?5) RETURNING *`
+  ).bind(review.name, review.stars, review.text, shown ? 1 : 0, nowIso()).first();
+  return json({ review: rowToReview(row), settings: await publishShownReviews(env) }, 201);
+}
+
+async function managerPatchReview(req, env, idParam) {
+  const id = Number(idParam);
+  const body = await readBody(req);
+  if (!Number.isInteger(id) || !body || typeof body.shown !== 'boolean') return json({ error: 'Send { shown: true | false }' }, 400);
+  const row = await env.DB.prepare('UPDATE reviews SET shown = ?1, read_at = COALESCE(read_at, ?2) WHERE id = ?3 RETURNING *')
+    .bind(body.shown ? 1 : 0, nowIso(), id).first();
+  if (!row) return json({ error: 'Review not found' }, 404);
+  return json({ review: rowToReview(row), settings: await publishShownReviews(env) });
+}
+
+async function managerDeleteReview(env, idParam) {
+  const id = Number(idParam);
+  const r = await env.DB.prepare('DELETE FROM reviews WHERE id = ?').bind(Number.isInteger(id) ? id : -1).run();
+  if (!r.meta || !r.meta.changes) return json({ error: 'Review not found' }, 404);
+  return json({ ok: true, settings: await publishShownReviews(env) });
+}
+
+async function managerMarkReviewsRead(env) {
+  await env.DB.prepare('UPDATE reviews SET read_at = ?1 WHERE read_at IS NULL').bind(nowIso()).run();
+  return json({ ok: true });
+}
+
 // ---------- router ----------
 const SITE_URL = 'https://elite-cuts-4qn.pages.dev/';
 
@@ -1047,6 +1242,7 @@ const routes = [
   ['POST', /^\/api\/manager\/login$/, (req, env) => managerLogin(req, env)],
   ['POST', /^\/api\/manager\/logout$/, (req, env) => managerLogout(req, env), true],
   ['GET', /^\/api\/manager\/bookings$/, (req, env, url) => managerBookings(url, env), true],
+  ['POST', /^\/api\/manager\/bookings\/clear-cancelled$/, (req, env) => managerClearCancelled(env), true],
   ['PATCH', /^\/api\/manager\/bookings\/([^/]+)$/, (req, env, url, m) => managerPatchBooking(req, env, decodeURIComponent(m[1])), true],
   ['GET', /^\/api\/manager\/loyalty\.csv$/, (req, env) => managerLoyaltyCsv(env), true],
   ['GET', /^\/api\/manager\/report$/, (req, env, url) => managerReport(url, env), true],
@@ -1058,7 +1254,13 @@ const routes = [
   ['POST', /^\/api\/wallet\/topup$/, (req, env) => walletTopUp(req, env)],
   ['GET', /^\/api\/manager\/wallets$/, (req, env) => managerWallets(env), true],
   ['POST', /^\/api\/manager\/wallets\/([^/]+)\/adjust$/, (req, env, url, m) => managerWalletAdjust(req, env, decodeURIComponent(m[1])), true],
-  ['POST', /^\/api\/manager\/wallets\/([^/]+)\/reset-pin$/, (req, env, url, m) => managerWalletResetPin(env, decodeURIComponent(m[1])), true]
+  ['POST', /^\/api\/manager\/wallets\/([^/]+)\/reset-pin$/, (req, env, url, m) => managerWalletResetPin(env, decodeURIComponent(m[1])), true],
+  ['POST', /^\/api\/reviews$/, (req, env) => createReview(req, env)],
+  ['GET', /^\/api\/manager\/reviews$/, (req, env) => managerReviews(env), true],
+  ['POST', /^\/api\/manager\/reviews$/, (req, env) => managerAddReview(req, env), true],
+  ['POST', /^\/api\/manager\/reviews\/read$/, (req, env) => managerMarkReviewsRead(env), true],
+  ['PATCH', /^\/api\/manager\/reviews\/(\d+)$/, (req, env, url, m) => managerPatchReview(req, env, m[1]), true],
+  ['DELETE', /^\/api\/manager\/reviews\/(\d+)$/, (req, env, url, m) => managerDeleteReview(env, m[1]), true]
 ];
 
 export default {

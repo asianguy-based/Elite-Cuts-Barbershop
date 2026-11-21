@@ -1,7 +1,7 @@
 // RELEASE: bump CACHE_NAME on every deploy and say what changed in RELEASE_NOTES. Installed apps
 // show it in a popup ("UPDATE: <notes>  [OK]") and switch to the new version when OK is tapped.
-const CACHE_NAME = 'elite-cuts-h5-v1.5.0';
-const RELEASE_NOTES = 'Pay online when you book: deposit, prepay in full, or use your VIP wallet credit.';
+const CACHE_NAME = 'elite-cuts-h5-v1.6.0';
+const RELEASE_NOTES = 'Leave a review from the home screen, and add your email when you book so we can tell you when wallet credit comes back.';
 // Every same-origin file the app needs to boot offline. Add new css/js files here and bump CACHE_NAME.
 // Not './index.html': Cloudflare Pages 308-redirects it to './', and a cached redirect
 // cannot be replayed for a page load, which broke the installed app when offline.
@@ -22,6 +22,7 @@ const APP_SHELL = [
   './js/loyalty.js',
   './js/admin.js',
   './js/ui.js',
+  './js/reviews.js',
   './js/update.js'
 ];
 // Cross-origin CDN assets (Tailwind, Font Awesome, Google Fonts) are NOT pre-cached:

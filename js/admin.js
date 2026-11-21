@@ -1,10 +1,33 @@
 import { MANAGER_TOKEN_KEY, api, apiConfigured, escapeHtml, loadPaymentsInfo, loadSharedSettings, paymentsInfo, publishSharedSettings } from './api.js';
 import { refreshNextChair, renderNextChair, resetSlotCaches, syncBookingWithConfig } from './booking.js';
-import { STORAGE_KEY_CONFIG, pickShared, saveConfig, shopConfig } from './config.js';
+import { SHARED_FIELDS, STORAGE_KEY_CONFIG, pickShared, saveConfig, shopConfig } from './config.js';
+import { STORAGE_KEY_REVIEWS, markReviewsRead, renderAdminReviews } from './reviews.js';
 import { LoyaltyVault, STORAGE_KEY_BOOKINGS, STORAGE_KEY_LOYALTY, bookings, loyaltyDB, normalizePhone, saveBookings, saveLoyaltyDB, setBookings } from './storage.js';
-import { applyThemeVariables, renderHome, reviewsToText, switchTab, textToReviews } from './ui.js';
+import { applyThemeVariables, renderHome, switchTab } from './ui.js';
 
-// Manager portal (?portal=admin): PIN gate, queue, barber folders, CSV, white-label settings.
+// Manager portal (?portal=admin): PIN gate, then four tabs:
+//   Appointments (queue + calendar) / Barber Roster / Customer VIP Information (wallets + loyalty CSV) /
+//   Admin (Application Settings, Client Reviews, Import/Export Barbershop Settings).
+
+const ADMIN_TABS = ['appointments', 'barbers', 'vip', 'admin'];
+const ADMIN_TAB_KEY = 'EC_ADMIN_TAB';
+
+export function switchAdminTab(tab) {
+  if (!ADMIN_TABS.includes(tab)) tab = 'appointments';
+  ADMIN_TABS.forEach(t => {
+    document.getElementById(`adminPanel-${t}`).classList.toggle('hidden', t !== tab);
+    const btn = document.getElementById(`adminTabBtn-${t}`);
+    btn.setAttribute('aria-selected', String(t === tab));
+    btn.tabIndex = t === tab ? 0 : -1;
+  });
+  try { sessionStorage.setItem(ADMIN_TAB_KEY, tab); } catch (err) { /* ignore */ }
+  if (tab === 'appointments') renderAdminCalendar();
+  if (tab === 'admin') renderAdminReviews().then(markReviewsRead);
+}
+
+function savedAdminTab() {
+  try { return sessionStorage.getItem(ADMIN_TAB_KEY) || 'appointments'; } catch (err) { return 'appointments'; }
+}
 
 // EXPORT / IMPORT CSV
 export async function exportLoyaltyCSV() {
@@ -73,6 +96,7 @@ export function openAdminModal() {
     ? '(Live mode — PIN is checked by the API server)'
     : '(Demo mode — set an API URL in Settings for a real PIN. Demo PIN: 1234)';
   setPublishHint('');
+  switchAdminTab(savedAdminTab());
   renderAdminQueue();
   renderAdminBarbers();
 }
@@ -84,7 +108,6 @@ function fillSettingsForm() {
   document.getElementById('cfgAccentColor').value = shopConfig.accentColor || '#d4af37';
   document.getElementById('cfgPaymentLinkUrl').value = shopConfig.paymentLinkUrl || '';
   document.getElementById('cfgApiBaseUrl').value = shopConfig.apiBaseUrl || '';
-  document.getElementById('cfgReviews').value = reviewsToText(shopConfig.reviews);
   document.getElementById('cfgReviewsAreSamples').checked = !!shopConfig.reviewsAreSamples;
   document.getElementById('cfgDepositAmount').value = shopConfig.depositAmount ?? 15;
   document.getElementById('cfgWalletTopUps').value = (shopConfig.walletTopUps || [25, 50, 100]).join(', ');
@@ -166,6 +189,8 @@ export async function unlockAdmin() {
   renderAdminQueue();
   renderAdminBarbers();
   renderAdminWallets();
+  renderAdminReviews();
+  switchAdminTab(savedAdminTab());
 }
 
 export let remoteBookings = null; // manager list loaded from the API (live mode only)
@@ -188,21 +213,112 @@ export async function renderAdminQueue() {
   const list = document.getElementById('adminAppointmentsList');
   if (rows.length === 0) {
     list.innerHTML = `<div class="text-xs text-gray-400 py-1">No appointments in queue.</div>`;
-    return;
+  } else {
+    list.innerHTML = rows.map(bookingRow).join('');
   }
-  list.innerHTML = rows.map(b => `
-    <div class="p-2.5 rounded-xl bg-primary border border-white/10 flex items-center justify-between text-xs">
-      <div>
+  renderAdminCalendar();
+}
+
+function bookingRow(b) {
+  const phone = b.clientPhone
+    ? ` • ${escapeHtml(b.clientPhone)}`
+    : (b.status === 'Cancelled' ? ' • <span class="text-gray-500">phone removed</span>' : '');
+  return `
+    <div class="p-2.5 rounded-xl bg-primary border border-white/10 flex items-center justify-between gap-2 text-xs">
+      <div class="min-w-0">
         <div class="font-bold text-white">${escapeHtml(b.clientName)} <span class="text-accent">(${escapeHtml(b.refCode)})</span></div>
-        <div class="text-[11px] text-gray-400">${escapeHtml(b.date)} ${escapeHtml(b.time)} • ${escapeHtml(b.barberName)} • <span class="text-gray-300">${escapeHtml(b.status || '')}</span>${payLabel(b)}</div>
+        <div class="text-[11px] text-gray-400">${escapeHtml(b.date)} ${escapeHtml(b.time)} • ${escapeHtml(b.barberName)} • <span class="text-gray-300">${escapeHtml(b.status || '')}</span>${payLabel(b)}${phone}</div>
       </div>
-      <div class="flex gap-1">
+      <div class="flex gap-1 shrink-0">
         ${apiConfigured() && b.paymentMode === 'deposit' && !b.paid ? `<button data-id="${escapeHtml(b.id)}" onclick="updateBookingStatus(this.dataset.id, 'Paid')" class="px-2 py-1 rounded bg-accent/20 text-accent text-[10px]">Paid</button>` : ''}
         <button data-id="${escapeHtml(b.id)}" onclick="updateBookingStatus(this.dataset.id, 'Completed')" class="px-2 py-1 rounded bg-emerald-500/20 text-emerald-300 text-[10px]">Done</button>
         <button data-id="${escapeHtml(b.id)}" onclick="updateBookingStatus(this.dataset.id, 'Cancelled')" class="px-2 py-1 rounded bg-rose-500/20 text-rose-300 text-[10px]">Cancel</button>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+}
+
+// CALENDAR (Appointments tab): one month, a count per day; tap a day to list its bookings.
+const pad2 = (n) => String(n).padStart(2, '0');
+const localDate = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+let calMonth = localDate(new Date()).slice(0, 7);   // "YYYY-MM"
+let calSelected = '';
+let calRows = [];
+let calLoadedFor = '';
+
+export function shiftAdminCalendar(delta) {
+  const [y, m] = calMonth.split('-').map(Number);
+  const d = new Date(y, m - 1 + delta, 1);
+  calMonth = `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
+  calSelected = '';
+  renderAdminCalendar();
+}
+
+export function selectAdminCalendarDay(date) {
+  calSelected = calSelected === date ? '' : date;
+  drawCalendar();
+}
+
+export async function renderAdminCalendar() {
+  const grid = document.getElementById('adminCalendarGrid');
+  if (!grid) return;
+  const [y, m] = calMonth.split('-').map(Number);
+  const last = new Date(y, m, 0).getDate();
+  const from = `${calMonth}-01`, to = `${calMonth}-${pad2(last)}`;
+  if (apiConfigured()) {
+    if (sessionStorage.getItem(MANAGER_TOKEN_KEY)) {
+      try {
+        const res = await api(`/api/manager/bookings?from=${from}&to=${to}`);
+        if (res.ok) { calRows = res.data.bookings || []; calLoadedFor = calMonth; }
+      } catch (err) {
+        console.warn('Calendar fetch failed:', err);
+      }
+    }
+    if (calLoadedFor !== calMonth) calRows = [];
+  } else {
+    calRows = bookings.filter(b => b.date >= from && b.date <= to);
+  }
+  drawCalendar();
+}
+
+function drawCalendar() {
+  const grid = document.getElementById('adminCalendarGrid');
+  if (!grid) return;
+  const [y, m] = calMonth.split('-').map(Number);
+  const first = new Date(y, m - 1, 1);
+  const days = new Date(y, m, 0).getDate();
+  const today = localDate(new Date());
+  document.getElementById('adminCalMonth').textContent = first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  const active = calRows.filter(b => b.status !== 'Cancelled');
+  const counts = {};
+  active.forEach(b => { counts[b.date] = (counts[b.date] || 0) + 1; });
+  let cells = '';
+  for (let i = 0; i < first.getDay(); i++) cells += '<span></span>';
+  for (let d = 1; d <= days; d++) {
+    const date = `${calMonth}-${pad2(d)}`;
+    const n = counts[date] || 0;
+    const sel = date === calSelected;
+    cells += `<button type="button" data-date="${date}" onclick="selectAdminCalendarDay(this.dataset.date)"
+      aria-label="${date}: ${n} appointment${n === 1 ? '' : 's'}" aria-pressed="${sel}"
+      class="h-11 rounded-lg flex flex-col items-center justify-center text-[11px] border ${sel ? 'bg-accent text-[#1a1a2e] border-accent font-bold' : date === today ? 'bg-white/10 text-white border-accent/60' : 'bg-primary text-gray-300 border-white/10'}">
+      <span>${d}</span>${n ? `<span class="text-[9px] leading-none ${sel ? '' : 'text-accent'} font-bold">${n}</span>` : ''}
+    </button>`;
+  }
+  grid.innerHTML = cells;
+  const dayBox = document.getElementById('adminCalendarDay');
+  if (!calSelected) {
+    dayBox.innerHTML = `<p class="text-[11px] text-gray-400">${active.length} appointment${active.length === 1 ? '' : 's'} this month. Tap a day to see them.</p>`;
+    return;
+  }
+  const rows = calRows.filter(b => b.date === calSelected).sort((a, b) => slotMinutes(a.time) - slotMinutes(b.time));
+  dayBox.innerHTML = `<div class="text-[11px] font-semibold text-white">${escapeHtml(calSelected)}</div>` +
+    (rows.length ? rows.map(bookingRow).join('') : '<p class="text-[11px] text-gray-400">No appointments that day.</p>');
+}
+
+/** "01:30 PM" -> minutes after midnight, for sorting a day's list. */
+function slotMinutes(t) {
+  const mt = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(String(t || '').trim());
+  if (!mt) return 0;
+  return ((Number(mt[1]) % 12) + (mt[3].toUpperCase() === 'PM' ? 12 : 0)) * 60 + Number(mt[2]);
 }
 
 const PAY_LABELS = { deposit: 'Deposit', prepay: 'Prepaid', wallet: 'Wallet', chair: 'At chair' };
@@ -218,6 +334,7 @@ export async function updateBookingStatus(id, status) {
     try {
       const res = await api(`/api/manager/bookings/${encodeURIComponent(id)}`, { method: 'PATCH', body: { status } });
       if (!res.ok) alert('Update failed: ' + ((res.data && res.data.error) || res.status));
+      else if (res.data && res.data.creditReturned) alert(creditBackMessage(res.data));
     } catch (err) {
       alert('Could not reach the booking server to update this booking.');
     }
@@ -231,11 +348,43 @@ export async function updateBookingStatus(id, status) {
   renderNextChair();
 }
 
-export function clearCompletedBookings() {
+const EMAIL_RESULT = {
+  sent: 'The client was emailed that their credit is back.',
+  no_address: 'No email sent: the client did not give an email address.',
+  not_configured: 'No email sent: email is not set up on the booking server yet.',
+  failed: 'The email could not be sent. You may want to call or text the client.'
+};
+export function creditBackMessage(data) {
+  return `$${Number(data.creditReturned).toFixed(2)} went back on the client's VIP wallet and their phone number was taken off this appointment.\n` +
+    (EMAIL_RESULT[data.email] || '');
+}
+
+// Clear Cancelled: in live mode the queue comes from the server, so the server hides them
+// (it used to filter only this browser's demo list, so nothing happened in live mode).
+export async function clearCancelledBookings() {
+  if (apiConfigured()) {
+    let res;
+    try {
+      res = await api('/api/manager/bookings/clear-cancelled', { method: 'POST' });
+    } catch (err) {
+      alert('Could not reach the booking server to clear cancelled appointments.');
+      return;
+    }
+    if (!res.ok) {
+      if (res.status === 401) sessionStorage.removeItem(MANAGER_TOKEN_KEY);
+      alert(res.status === 401 ? 'Your manager login expired. Close the studio and log in again.' : 'Clear failed: ' + ((res.data && res.data.error) || res.status));
+      return;
+    }
+    await renderAdminQueue();
+    if (!res.data.cleared) alert('There are no cancelled appointments to clear.');
+    return;
+  }
+  const before = bookings.length;
   setBookings(bookings.filter(b => b.status !== 'Cancelled'));
   saveBookings();
   renderAdminQueue();
   renderNextChair();
+  if (before === bookings.length) alert('There are no cancelled appointments to clear.');
 }
 
 export function renderAdminBarbers() {
@@ -378,16 +527,15 @@ export async function saveWhiteLabelConfig() {
     prepayEnabled: document.getElementById('cfgPrepayEnabled').checked,
     walletEnabled: document.getElementById('cfgWalletEnabled').checked,
     requireDeposit: document.getElementById('cfgRequireDeposit').checked,
-    walletTopUps: parseTopUps(document.getElementById('cfgWalletTopUps').value),
-    reviews: textToReviews(document.getElementById('cfgReviews').value),
-    reviewsAreSamples: document.getElementById('cfgReviewsAreSamples').checked
+    walletTopUps: parseTopUps(document.getElementById('cfgWalletTopUps').value)
   };
   const apiBaseUrl = document.getElementById('cfgApiBaseUrl').value.trim();
   const apiChanged = apiBaseUrl !== (shopConfig.apiBaseUrl || '').trim();
   let note;
   if (apiConfigured() && !apiChanged) {
     // Publish the whole shared profile, so a shop's first save also publishes its services, hours etc.
-    if (!(await commitShared({ ...pickShared(), ...edits }))) return;
+    // Reviews are left out: the server keeps them in step with the Client Reviews log.
+    if (!(await commitShared({ ...sharedWithoutReviews(), ...edits }))) return;
     note = ' Published to every client.';
   } else {
     // Demo mode, or the API URL itself is changing: keep the edits on this device for now.
@@ -416,6 +564,7 @@ export async function renderAdminWallets() {
   if (!section) return;
   const live = apiConfigured() && sessionStorage.getItem(MANAGER_TOKEN_KEY);
   section.classList.toggle('hidden', !live);
+  document.getElementById('adminWalletsDemoNote').classList.toggle('hidden', !!live);
   if (!live) return;
   let wallets = [];
   try {
@@ -464,16 +613,80 @@ export async function adminResetWalletPin(phone) {
   renderAdminWallets();
 }
 
-export function exportConfigJSON() {
-  const payload = JSON.stringify({ shopConfig, bookings, loyaltyDB }, null, 2);
-  const blob = new Blob([payload], { type: 'application/json' });
+function sharedWithoutReviews() {
+  const out = pickShared();
+  delete out.reviews;
+  return out;
+}
+
+// "Label shown reviews as samples" (Admin > Client Reviews) saves straight away.
+export async function saveReviewsAreSamples(checked) {
+  if (!(await commitShared({ reviewsAreSamples: !!checked }))) {
+    document.getElementById('cfgReviewsAreSamples').checked = !!shopConfig.reviewsAreSamples;
+    return;
+  }
+  renderHome();
+}
+
+// IMPORT / EXPORT BARBERSHOP SETTINGS. The file holds the shop profile only (no client phones or bookings).
+export const SETTINGS_FILE_KIND = 'elite-cuts-barbershop-settings';
+
+export function buildSettingsExport(cfg = shopConfig) {
+  return { kind: SETTINGS_FILE_KIND, version: 1, exportedAt: new Date().toISOString(), settings: pickShared(cfg) };
+}
+
+/** The shared settings inside an export file (this format, or an old "Tenant Backup"), or null. */
+export function settingsFromFile(data) {
+  if (!data || typeof data !== 'object') return null;
+  const src = data.kind === SETTINGS_FILE_KIND ? data.settings : data.shopConfig;
+  if (!src || typeof src !== 'object' || Array.isArray(src)) return null;
+  const out = {};
+  SHARED_FIELDS.forEach(k => { if (src[k] !== undefined) out[k] = src[k]; });
+  return Object.keys(out).length ? out : null;
+}
+
+export function exportShopSettings() {
+  const blob = new Blob([JSON.stringify(buildSettingsExport(), null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `${shopConfig.shopName.toLowerCase().replace(/\s+/g, '-')}-backup.json`;
+  a.download = `${shopConfig.shopName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-settings.json`;
   a.click();
 }
 
+export function importShopSettings(event) {
+  const input = event.target;
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    input.value = '';
+    let settings = null;
+    try { settings = settingsFromFile(JSON.parse(reader.result)); } catch (err) { settings = null; }
+    if (!settings) { alert('That file is not an Elite Cuts settings export.'); return; }
+    // Live mode: reviews live in the Client Reviews log (ticked there), so an import leaves them alone.
+    const live = apiConfigured();
+    if (live) delete settings.reviews;
+    const name = settings.shopName || shopConfig.shopName;
+    if (!confirm(`Replace this shop's settings with the ones in "${file.name}" (${name})?` +
+      (live ? ' They are published to every client right away. Reviews are not changed.' : ''))) return;
+    if (!(await commitShared(live ? { ...sharedWithoutReviews(), ...settings } : settings))) return;
+    if (!live) {
+      try { localStorage.removeItem(STORAGE_KEY_REVIEWS); } catch (err) { /* ignore */ }   // re-seed the demo log from the imported reviews
+    }
+    syncBookingWithConfig();
+    resetSlotCaches();
+    applyThemeVariables();
+    renderHome();
+    fillSettingsForm();
+    renderAdminBarbers();
+    renderAdminReviews();
+    alert('Settings imported.' + (live ? ' Published to every client.' : ''));
+  };
+  reader.readAsText(file);
+}
+
 export function resetDemoData() {
+  localStorage.removeItem(STORAGE_KEY_REVIEWS);
   localStorage.removeItem(STORAGE_KEY_CONFIG);
   localStorage.removeItem(STORAGE_KEY_BOOKINGS);
   localStorage.removeItem(STORAGE_KEY_LOYALTY);

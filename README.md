@@ -99,6 +99,12 @@ Test mode only by default: the Worker creates Checkout only with a `sk_test_`/`r
 
 **Upgrading an existing shop:** re-run `npx wrangler d1 execute elite-cuts --remote --file=schema.sql` before deploying this version (it adds the `manager_sessions`, `rate_limits` and `shop_settings` tables; existing data is untouched).
 
+**Manager Studio tabs (v1.6.0):** the admin portal is split into four tabs so it doesn't become one long scroll: **Appointments** (queue with **Clear Cancelled**, plus a month calendar), **Barber Roster** (barber folders and roster), **Customer VIP Information** (VIP wallet credit and the loyalty spreadsheet) and **Admin** (Application Settings, Client Reviews, and Import/Export Barbershop Settings). Clear Cancelled hides cancelled bookings on the server (`cleared_at`), so it works in live mode too; the rows are kept for history.
+
+**Client reviews:** clients leave one from the home screen (`POST /api/reviews`, 3 an hour per address). Every review is logged in the `reviews` table, unread until the manager opens the Admin tab, and only the ones ticked **Show** appear on the home screen. Run `npx wrangler d1 migrations apply elite-cuts --remote` (migration `0002_admin_portal.sql`) before deploying this Worker; reviews already on the home screen are carried into the log, ticked.
+
+**Credit-back email:** when the manager cancels a booking paid from the VIP wallet, the credit goes back once and the client's phone number is taken off that cancelled appointment (the wallet and loyalty account are kept). If the client gave an email when booking, the Worker emails them through [Resend](https://resend.com): set `npx wrangler secret put RESEND_API_KEY` and `EMAIL_FROM` under `[vars]` (an address on a domain verified in Resend). Without them the credit still goes back and the manager is told the email isn't set up.
+
 **Tests:** `cd worker && npm test` runs the Worker end to end against the real `schema.sql` plus every migration (payments are tested against a fake Stripe) using Node 22+'s built-in SQLite (no Cloudflare account needed). `node --test tests/shared-settings.test.mjs` checks the app's settings code against that same Worker.
 
 ---

@@ -14,9 +14,15 @@ database_id = "58a73f46-b18a-4209-a919-063a31aa4ca6"
 # Browser origins allowed to call this API (comma-separated). "https://*.x" also matches
 # preview deploys like https://abc123.x. Add your custom domain here if you add one. "*" = any.
 ALLOWED_ORIGINS = "https://elite-cuts-barbershop.app,https://elite-cuts-4qn.pages.dev,https://*.elite-cuts-4qn.pages.dev"
+# Sender for the "your credit is back" email (only used once RESEND_API_KEY is set):
+# EMAIL_FROM = "Elite Cuts <bookings@elite-cuts-barbershop.app>"
 
 # Secrets (NOT stored here — set with `npx wrangler secret put <NAME>`):
 #   MANAGER_PIN            required — PIN for /api/manager/login
 #   STRIPE_WEBHOOK_SECRET  recommended — verifies signatures on /api/webhook/stripe
 #   STRIPE_SECRET_KEY      a TEST key (sk_test_...) turns on Stripe Checkout (deposit, prepay, wallet top-ups);
 #                          a live key is ignored unless STRIPE_ALLOW_LIVE = "true" is set as a var
+#   RESEND_API_KEY         optional — emails a client when VIP wallet credit comes back (resend.com).
+#                          Needs EMAIL_FROM too: uncomment it under [vars] above with an address on a
+#                          domain you verified in Resend, e.g.
+#                          EMAIL_FROM = "Elite Cuts <bookings@elite-cuts-barbershop.app>"
