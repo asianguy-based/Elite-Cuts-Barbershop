@@ -115,7 +115,6 @@ export function renderBookingStep2() {
           <div>
             <div class="text-sm font-bold text-white">${escapeHtml(b.name)}</div>
             <div class="text-xs text-gray-300">${escapeHtml(b.specialty)}</div>
-            <div class="text-[10px] text-accent">Folder: /barbers/${escapeHtml(b.folder)}/</div>
           </div>
         </div>
         <i class="fa-solid ${active ? 'fa-circle-check text-accent text-lg' : 'fa-circle text-white/10 text-lg'}"></i>
