@@ -497,8 +497,11 @@
         <div id="adminPanel-appointments" role="tabpanel" aria-labelledby="adminTabBtn-appointments" class="admin-panel space-y-5">
           <div class="space-y-2">
             <div class="flex justify-between items-center">
-              <h4 class="text-xs font-bold uppercase tracking-wider text-accent">Appointments Queue (<span id="adminBookingCount">0</span>)</h4>
-              <button onclick="clearCancelledBookings()" class="text-[11px] text-gray-400 hover:text-white">Clear Cancelled</button>
+              <div>
+                <h4 class="text-xs font-bold uppercase tracking-wider text-accent">Today's Appointments Queue (<span id="adminBookingCount">0</span>)</h4>
+                <p id="adminQueueDate" class="text-[11px] text-gray-400">Today only. Use the calendar below for other dates.</p>
+              </div>
+              <button onclick="clearCancelledBookings()" class="text-[11px] text-gray-400 hover:text-white shrink-0">Clear Cancelled</button>
             </div>
             <div id="adminAppointmentsList" class="space-y-2 max-h-80 overflow-y-auto pr-1"></div>
           </div>
@@ -516,6 +519,7 @@
               <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
             </div>
             <div id="adminCalendarGrid" class="grid grid-cols-7 gap-1"></div>
+            <h4 class="text-xs font-bold uppercase tracking-wider text-accent pt-2">Appointments for Selected Date</h4>
             <div id="adminCalendarDay" class="space-y-1.5"></div>
           </div>
         </div>

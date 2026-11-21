@@ -40,7 +40,7 @@ export function renderHome() {
   brbList.innerHTML = shopConfig.barbers.map(b => `
     <div data-id="${escapeHtml(b.id)}" onclick="quickBookBarber(this.dataset.id)" class="glass-card rounded-xl p-3 min-w-[165px] shrink-0 cursor-pointer hover:border-accent/60 transition">
       <div class="flex items-center gap-2.5">
-        <img src="${escapeHtml(b.avatar)}" class="w-11 h-11 rounded-full object-cover border border-accent" alt="${escapeHtml(b.name)}" />
+        <img src="${escapeHtml(b.avatar)}" onerror="this.onerror=null;this.src='icons/icon-192.png'" class="w-11 h-11 rounded-full object-cover border border-accent" alt="${escapeHtml(b.name)}" />
         <div>
           <div class="text-xs font-bold text-white leading-tight">${escapeHtml(b.name)}</div>
           <div class="text-[10px] text-accent font-semibold mt-0.5"><i class="fa-solid fa-star text-[9px]"></i> ${escapeHtml(b.rating)}</div>
@@ -54,7 +54,7 @@ export function renderHome() {
   galGrid.innerHTML = shopConfig.lookbook.map(item => `
     <div data-title="${escapeHtml(item.title)}" onclick="selectLookbookStyle(this.dataset.title)" class="glass-card rounded-xl overflow-hidden cursor-pointer group">
       <div class="relative h-36 overflow-hidden">
-        <img src="${escapeHtml(item.img)}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" alt="${escapeHtml(item.title)}" />
+        <img src="${escapeHtml(item.img)}" onerror="this.onerror=null;this.src='icons/icon-192.png'" class="w-full h-full object-cover group-hover:scale-105 transition duration-300" alt="${escapeHtml(item.title)}" />
         <span class="absolute top-2 left-2 text-[10px] bg-black/70 text-accent px-2 py-0.5 rounded font-semibold">${escapeHtml(item.tag)}</span>
       </div>
       <div class="p-2.5">

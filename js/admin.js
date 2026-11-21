@@ -195,24 +195,29 @@ export async function unlockAdmin() {
 
 export let remoteBookings = null; // manager list loaded from the API (live mode only)
 
+// The queue is today's appointments only; other days are on the calendar below it.
 export async function renderAdminQueue() {
-  let rows = bookings;
+  const today = localDate(new Date());
+  let rows = bookings.filter(b => b.date === today);
   if (apiConfigured()) {
     if (sessionStorage.getItem(MANAGER_TOKEN_KEY)) {
       try {
-        const res = await api('/api/manager/bookings');
+        const res = await api(`/api/manager/bookings?from=${today}&to=${today}`);
         if (res.ok) remoteBookings = res.data.bookings || [];
         else if (res.status === 401) sessionStorage.removeItem(MANAGER_TOKEN_KEY);
       } catch (err) {
         console.warn('Manager bookings fetch failed:', err);
       }
     }
-    rows = remoteBookings || [];
+    rows = (remoteBookings || []).filter(b => b.date === today);
   }
+  rows = [...rows].sort((a, b) => slotMinutes(a.time) - slotMinutes(b.time));
   document.getElementById('adminBookingCount').textContent = rows.length;
+  document.getElementById('adminQueueDate').textContent =
+    `${new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}. Today only; use the calendar below for other dates.`;
   const list = document.getElementById('adminAppointmentsList');
   if (rows.length === 0) {
-    list.innerHTML = `<div class="text-xs text-gray-400 py-1">No appointments in queue.</div>`;
+    list.innerHTML = `<div class="text-xs text-gray-400 py-1">No appointments today.</div>`;
   } else {
     list.innerHTML = rows.map(bookingRow).join('');
   }
@@ -306,11 +311,12 @@ function drawCalendar() {
   grid.innerHTML = cells;
   const dayBox = document.getElementById('adminCalendarDay');
   if (!calSelected) {
-    dayBox.innerHTML = `<p class="text-[11px] text-gray-400">${active.length} appointment${active.length === 1 ? '' : 's'} this month. Tap a day to see them.</p>`;
+    dayBox.innerHTML = `<p class="text-[11px] text-gray-400">${active.length} appointment${active.length === 1 ? '' : 's'} this month. Tap a date to see its appointments here.</p>`;
     return;
   }
   const rows = calRows.filter(b => b.date === calSelected).sort((a, b) => slotMinutes(a.time) - slotMinutes(b.time));
-  dayBox.innerHTML = `<div class="text-[11px] font-semibold text-white">${escapeHtml(calSelected)}</div>` +
+  const label = new Date(`${calSelected}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
+  dayBox.innerHTML = `<div class="text-[11px] font-semibold text-white">${escapeHtml(label)}</div>` +
     (rows.length ? rows.map(bookingRow).join('') : '<p class="text-[11px] text-gray-400">No appointments that day.</p>');
 }
 

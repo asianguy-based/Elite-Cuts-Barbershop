@@ -1,7 +1,7 @@
 // RELEASE: bump CACHE_NAME on every deploy and say what changed in RELEASE_NOTES. Installed apps
 // show it in a popup ("UPDATE: <notes>  [OK]") and switch to the new version when OK is tapped.
 const CACHE_NAME = 'elite-cuts-h5-v1.6.1';
-const RELEASE_NOTES = 'VIP wallet credit is non-refundable store credit, good for cuts and products only.';
+const RELEASE_NOTES = 'Wallet credit is non-refundable store credit. The appointments queue now shows today only, and there are two more barbers and haircut styles to preview.';
 // Every same-origin file the app needs to boot offline. Add new css/js files here and bump CACHE_NAME.
 // Not './index.html': Cloudflare Pages 308-redirects it to './', and a cached redirect
 // cannot be replayed for a page load, which broke the installed app when offline.

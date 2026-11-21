@@ -26,6 +26,11 @@ const SHOTS = process.env.SHOTS || '';
 const LIVE_HOST = 'elite-cuts-api.voxlibera.workers.dev';
 const STUB_API = 'https://stub-api.example.test';
 const CONFIG_KEY = 'ELITE_CUTS_H5_CONFIG_V1';
+// The next-open-chair checks below are written for two barbers; the app ships four preview barbers.
+const E2E_BARBERS = [
+  { id: 'brb-1', firstName: 'Marcus', lastName: 'Vance', name: 'Marcus Vance', folder: 'marcus_vance', photoFilename: 'marcus_vance_001.jpg', role: 'Master Barber • 12 Yrs', specialty: 'Skin Fades & Beard Sculpting', rating: '5.0', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=240&q=80' },
+  { id: 'brb-2', firstName: 'Mateo', lastName: 'Cruz', name: 'Mateo Cruz', folder: 'mateo_cruz', photoFilename: 'mateo_cruz_001.jpg', role: 'Senior Barber • 8 Yrs', specialty: 'Razor Tapers & Crop Cuts', rating: '4.9', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=240&q=80' }
+];
 const BOOKINGS_KEY = 'ELITE_CUTS_H5_BOOKINGS_V1';
 // Hosts whose network failures are expected in this sandbox / by design.
 const IGNORED_FAIL_HOSTS = ['images.unsplash.com', LIVE_HOST, 'stub-api.example.test'];
@@ -110,15 +115,16 @@ async function newApp(browser, vp, { mode = 'demo', stub = null, extraConfig = n
     return stub(r, cors);
   });
   // 3) Force the API base URL before any page script runs, on every navigation.
-  await context.addInitScript(({ key, apiBaseUrl, extra, bookingsKey, seed }) => {
+  await context.addInitScript(({ key, apiBaseUrl, extra, bookingsKey, seed, barbers }) => {
     try {
       const cfg = JSON.parse(localStorage.getItem(key) || '{}');
       cfg.apiBaseUrl = apiBaseUrl;
+      if (!cfg.barbers) cfg.barbers = barbers;
       if (extra && !sessionStorage.getItem('__e2e_extra')) { Object.assign(cfg, extra); sessionStorage.setItem('__e2e_extra', '1'); }
       localStorage.setItem(key, JSON.stringify(cfg));
       if (seed && !sessionStorage.getItem('__e2e_seed')) { localStorage.setItem(bookingsKey, JSON.stringify(seed)); sessionStorage.setItem('__e2e_seed', '1'); }
     } catch (_) { /* storage blocked */ }
-  }, { key: CONFIG_KEY, apiBaseUrl: mode === 'stub' ? STUB_API : '', extra: extraConfig, bookingsKey: BOOKINGS_KEY, seed: seedBookings });
+  }, { key: CONFIG_KEY, apiBaseUrl: mode === 'stub' ? STUB_API : '', extra: extraConfig, bookingsKey: BOOKINGS_KEY, seed: seedBookings, barbers: E2E_BARBERS });
 
   const page = await context.newPage();
   await page.clock.setSystemTime(NOW);
@@ -222,11 +228,14 @@ async function coreSuite(browser, vp) {
       await page.click('#adminPinGate button:has-text("Unlock")');
       await page.waitForSelector('#adminContent:not(.hidden)');
       await page.click('#adminTabBtn-appointments');
-      const row = page.locator('#adminAppointmentsList > div', { hasText: ref });
-      assert(await row.count() === 1, 'booking row present in admin queue');
+      // Today's queue holds only today; tomorrow's booking is under the calendar once its date is picked.
+      assert(await page.locator('#adminAppointmentsList > div', { hasText: ref }).count() === 0, "tomorrow's booking is not in today's queue");
+      await page.click(`#adminCalendarGrid button[data-date="${TOMORROW}"]`);
+      const row = page.locator('#adminCalendarDay > div', { hasText: ref });
+      assert(await row.count() === 1, 'booking row listed for the selected date');
       assertIncludes(await row.textContent(), `${TOMORROW} 04:30 PM • Mateo Cruz`, 'admin row date/time/barber');
       await row.locator('button:has-text("Done")').click();
-      await page.waitForFunction(r => [...document.querySelectorAll('#adminAppointmentsList > div')].some(d => d.textContent.includes(r) && d.textContent.includes('Completed')), ref);
+      await page.waitForFunction(r => [...document.querySelectorAll('#adminCalendarDay > div')].some(d => d.textContent.includes(r) && d.textContent.includes('Completed')), ref);
       const stored = await page.evaluate(k => JSON.parse(localStorage.getItem(k)), BOOKINGS_KEY);
       assert(stored.find(b => b.refCode === ref).status === 'Completed', 'status persisted');
       await noHorizontalScroll(page, 'admin');
@@ -265,7 +274,7 @@ async function coreSuite(browser, vp) {
       // LOOKBOOK
       await page.click('#nav-gallery');
       assert(await visible(page, '#view-gallery'), 'lookbook visible');
-      assert(await page.locator('#galleryGrid > div').count() === 2, '2 lookbook items');
+      assert(await page.locator('#galleryGrid > div').count() === 4, '4 lookbook items');
       await noHorizontalScroll(page, 'lookbook');
       await shot(page, `${vp.name}-lookbook`);
       await page.click('#galleryGrid > div >> nth=0');
