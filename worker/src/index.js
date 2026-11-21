@@ -66,6 +66,8 @@ const BOOK_AHEAD_DAYS = 120;       // furthest date a client can book
 const PAY_OPTIONS = ['deposit', 'prepay', 'wallet', 'chair'];
 const DEFAULT_DEPOSIT = 15;        // dollars, when the shop hasn't published its own deposit amount
 const CHECKOUT_MINUTES = 31;       // Stripe's minimum Checkout lifetime is 30 minutes; unpaid bookings free up after it
+// The wallet is in-house store credit: what a client loads can't be cashed out or refunded to a card.
+export const WALLET_TERMS = "VIP wallet credit is non-refundable store credit, good for cuts and products only. It can't be cashed out or refunded to your card.";
 const WALLET_MIN_TOPUP = 5, WALLET_MAX_TOPUP = 500;   // whole dollars per top-up
 const WALLET_PIN = /^\d{4,6}$/;
 const WALLET_PER_HOUR = 30;        // wallet balance checks / top-ups per client address per hour
@@ -634,7 +636,7 @@ function siteUrl(req, env) {
 }
 
 /** POST /v1/checkout/sessions with an inline price. Returns { id, url } or null. */
-async function createCheckoutSession(env, { amountCents, name, description, refCode, metadata, successUrl, cancelUrl, idempotencyKey }) {
+async function createCheckoutSession(env, { amountCents, name, description, submitMessage, refCode, metadata, successUrl, cancelUrl, idempotencyKey }) {
   const { usable, key } = stripeKeyInfo(env);
   if (!usable) return null;
   const form = new URLSearchParams({
@@ -648,6 +650,7 @@ async function createCheckoutSession(env, { amountCents, name, description, refC
     expires_at: String(Math.floor(Date.now() / 1000) + CHECKOUT_MINUTES * 60)
   });
   if (description) form.set('line_items[0][price_data][product_data][description]', description);
+  if (submitMessage) form.set('custom_text[submit][message]', submitMessage);   // shown next to the Pay button
   if (refCode) form.set('client_reference_id', refCode);
   for (const [k, v] of Object.entries(metadata || {})) {
     form.set(`metadata[${k}]`, String(v));
@@ -785,7 +788,8 @@ async function walletTopUp(req, env) {
   const session = await createCheckoutSession(env, {
     amountCents: amount * 100,
     name: `VIP wallet credit ($${amount})`,
-    description: `Store credit for ${String((shop && shop.shopName) || 'the shop').slice(0, 60)}`,
+    description: `Non-refundable store credit for ${String((shop && shop.shopName) || 'the shop').slice(0, 60)}. Good for cuts and products only.`,
+    submitMessage: WALLET_TERMS,
     metadata: { kind: 'wallet_topup', phone },
     successUrl: `${site}/?tab=loyalty&topup=ok`,
     cancelUrl: `${site}/?tab=loyalty&topup=cancelled`,
@@ -1004,6 +1008,7 @@ async function sendCreditBackEmail(env, booking, refund) {
       '',
       `Your appointment ${booking.refCode} on ${booking.date} at ${booking.time} was cancelled, and the $${amount} you paid from your VIP wallet is back on your wallet.`,
       `Your wallet balance is now $${balance.toFixed(2)}. You can use it on your next booking.`,
+      'Wallet credit is non-refundable store credit, good for cuts and products only. It is not refunded to your card.',
       'Your phone number has been taken off the cancelled appointment.',
       '',
       shopName
