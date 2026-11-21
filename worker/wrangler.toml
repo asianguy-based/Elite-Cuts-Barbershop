@@ -13,7 +13,7 @@ database_id = "58a73f46-b18a-4209-a919-063a31aa4ca6"
 [vars]
 # Browser origins allowed to call this API (comma-separated). "https://*.x" also matches
 # preview deploys like https://abc123.x. Add your custom domain here if you add one. "*" = any.
-ALLOWED_ORIGINS = "https://elite-cuts-4qn.pages.dev,https://*.elite-cuts-4qn.pages.dev"
+ALLOWED_ORIGINS = "https://elite-cuts-barbershop.app,https://elite-cuts-4qn.pages.dev,https://*.elite-cuts-4qn.pages.dev"
 
 # Secrets (NOT stored here — set with `npx wrangler secret put <NAME>`):
 #   MANAGER_PIN            required — PIN for /api/manager/login
