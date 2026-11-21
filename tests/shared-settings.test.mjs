@@ -5,7 +5,7 @@
 // browser code and the API are checked together.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 
 const memStore = () => {
@@ -18,10 +18,15 @@ globalThis.sessionStorage = memStore();
 const worker = (await import('../worker/src/index.js')).default;
 const { SHOP_SETTINGS_FIELDS, validateShopSettings } = await import('../worker/src/index.js');
 const schema = readFileSync(new URL('../worker/schema.sql', import.meta.url), 'utf8');
+// Live databases get schema.sql once, then each migration in order (wrangler d1 migrations apply): do the same.
+const migrationsDir = new URL('../worker/migrations/', import.meta.url);
+const migrations = readdirSync(migrationsDir).filter((f) => f.endsWith('.sql')).sort()
+  .map((f) => readFileSync(new URL(f, migrationsDir), 'utf8'));
 
 function makeD1() {
   const db = new DatabaseSync(':memory:');
   db.exec(schema);
+  migrations.forEach((m) => db.exec(m));
   const stmt = (sql, args = []) => ({
     bind: (...a) => stmt(sql, a),
     first: async () => db.prepare(sql).get(...args) ?? null,

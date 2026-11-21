@@ -130,6 +130,30 @@
         <div id="homeReviewsList" class="space-y-2.5"></div>
       </div>
 
+      <!-- LEAVE A REVIEW: goes to the manager's Client Reviews log; shown only once the shop ticks it -->
+      <div id="leaveReviewCard" class="glass-card rounded-2xl p-4 space-y-3">
+        <div class="flex items-center justify-between gap-3">
+          <div>
+            <h3 class="font-brand text-sm font-bold uppercase tracking-wider text-white">Leave a Review</h3>
+            <p class="text-[11px] text-gray-400">Tell us how your cut went.</p>
+          </div>
+          <button type="button" id="leaveReviewToggle" onclick="toggleReviewForm()" aria-expanded="false" aria-controls="leaveReviewForm" class="shrink-0 px-3.5 py-2 rounded-xl bg-white/10 text-white font-semibold text-xs">
+            <i class="fa-solid fa-pen mr-1 text-accent"></i> Write one
+          </button>
+        </div>
+        <div id="leaveReviewForm" class="hidden space-y-2">
+          <div class="grid grid-cols-3 gap-2">
+            <input type="text" id="reviewName" maxlength="60" placeholder="Your first name" aria-label="Your name" class="col-span-2 rounded-xl bg-secondary border border-white/15 px-3 py-2 text-sm text-white" />
+            <select id="reviewStars" aria-label="Stars" class="rounded-xl bg-secondary border border-white/15 px-2 py-2 text-sm text-white">
+              <option value="5">5 ★</option><option value="4">4 ★</option><option value="3">3 ★</option><option value="2">2 ★</option><option value="1">1 ★</option>
+            </select>
+          </div>
+          <textarea id="reviewText" rows="3" maxlength="600" placeholder="What did you think?" aria-label="Your review" class="w-full rounded-xl bg-secondary border border-white/15 px-3 py-2 text-sm text-white"></textarea>
+          <button type="button" id="reviewSubmitBtn" onclick="submitClientReview()" class="w-full py-2.5 rounded-xl gold-gradient text-[#1a1a2e] font-bold text-xs">Send Review</button>
+        </div>
+        <p id="leaveReviewMsg" class="hidden text-[11px] text-emerald-300" role="status"></p>
+      </div>
+
       <div class="glass-card rounded-2xl p-4 space-y-3">
         <h3 class="font-brand text-sm font-bold uppercase tracking-wider text-accent flex items-center gap-2">
           <i class="fa-solid fa-location-dot"></i> Location & Hours
@@ -295,6 +319,10 @@
             <input type="tel" id="clientPhone" placeholder="(555) 234-5678" class="w-full rounded-xl bg-secondary border border-white/15 px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-accent" />
           </div>
           <div>
+            <label for="clientEmail" class="block text-xs text-gray-400 mb-1">Email (Optional, so we can tell you when wallet credit comes back)</label>
+            <input type="email" id="clientEmail" autocomplete="email" placeholder="you@example.com" class="w-full rounded-xl bg-secondary border border-white/15 px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-accent" />
+          </div>
+          <div>
             <label class="block text-xs text-gray-400 mb-1">Style Notes / Cut Preferences (Optional)</label>
             <input type="text" id="clientNotes" placeholder="Mid skin fade, #2 on top, hard part..." class="w-full rounded-xl bg-secondary border border-white/15 px-3.5 py-2.5 text-sm text-white focus:outline-none focus:border-accent" />
           </div>
@@ -446,23 +474,58 @@
         </div>
       </div>
 
-      <div id="adminContent" class="hidden space-y-5">
-        <!-- Live Queue -->
-        <div class="space-y-2">
-          <div class="flex justify-between items-center">
-            <h4 class="text-xs font-bold uppercase tracking-wider text-accent">Appointment Queue (<span id="adminBookingCount">0</span>)</h4>
-            <button onclick="clearCompletedBookings()" class="text-[11px] text-gray-400 hover:text-white">Clear Cancelled</button>
-          </div>
-          <div id="adminAppointmentsList" class="space-y-2 max-h-40 overflow-y-auto pr-1"></div>
+      <div id="adminContent" class="hidden space-y-4">
+        <!-- TABS: one section at a time, so a busy day isn't one long scroll -->
+        <div role="tablist" aria-label="Manager sections" class="sticky -top-5 z-10 -mx-5 px-3 py-2 bg-[#16213e] border-b border-white/10 grid grid-cols-4 gap-1">
+          <button type="button" role="tab" id="adminTabBtn-appointments" aria-controls="adminPanel-appointments" aria-selected="true" onclick="switchAdminTab('appointments')" class="admin-tab flex flex-col items-center gap-0.5 rounded-lg py-1.5 text-[10px] font-semibold leading-tight">
+            <i class="fa-solid fa-calendar-days text-sm"></i><span>Appointments</span>
+          </button>
+          <button type="button" role="tab" id="adminTabBtn-barbers" aria-controls="adminPanel-barbers" aria-selected="false" onclick="switchAdminTab('barbers')" class="admin-tab flex flex-col items-center gap-0.5 rounded-lg py-1.5 text-[10px] font-semibold leading-tight">
+            <i class="fa-solid fa-user-tie text-sm"></i><span>Barber Roster</span>
+          </button>
+          <button type="button" role="tab" id="adminTabBtn-vip" aria-controls="adminPanel-vip" aria-selected="false" onclick="switchAdminTab('vip')" class="admin-tab flex flex-col items-center gap-0.5 rounded-lg py-1.5 text-[10px] font-semibold leading-tight">
+            <i class="fa-solid fa-crown text-sm"></i><span>Customer VIP</span>
+          </button>
+          <button type="button" role="tab" id="adminTabBtn-admin" aria-controls="adminPanel-admin" aria-selected="false" onclick="switchAdminTab('admin')" class="admin-tab relative flex flex-col items-center gap-0.5 rounded-lg py-1.5 text-[10px] font-semibold leading-tight">
+            <i class="fa-solid fa-gear text-sm"></i><span>Admin</span>
+            <span id="adminReviewsBadge" class="hidden absolute top-0.5 right-1.5 min-w-[16px] h-4 px-1 rounded-full bg-rose-500 text-white text-[9px] leading-4 text-center"></span>
+          </button>
         </div>
 
-        <!-- BARBER FOLDERS & ROSTER -->
-        <div class="space-y-3 border-t border-white/10 pt-4">
+        <!-- ===== TAB 1: APPOINTMENTS (queue + calendar) ===== -->
+        <div id="adminPanel-appointments" role="tabpanel" aria-labelledby="adminTabBtn-appointments" class="admin-panel space-y-5">
+          <div class="space-y-2">
+            <div class="flex justify-between items-center">
+              <h4 class="text-xs font-bold uppercase tracking-wider text-accent">Appointments Queue (<span id="adminBookingCount">0</span>)</h4>
+              <button onclick="clearCancelledBookings()" class="text-[11px] text-gray-400 hover:text-white">Clear Cancelled</button>
+            </div>
+            <div id="adminAppointmentsList" class="space-y-2 max-h-80 overflow-y-auto pr-1"></div>
+          </div>
+
+          <div class="space-y-2 border-t border-white/10 pt-4">
+            <div class="flex justify-between items-center">
+              <h4 class="text-xs font-bold uppercase tracking-wider text-accent">Calendar</h4>
+              <div class="flex items-center gap-1.5">
+                <button type="button" onclick="shiftAdminCalendar(-1)" aria-label="Previous month" class="w-7 h-7 rounded-lg bg-white/10 text-gray-200 text-xs"><i class="fa-solid fa-chevron-left"></i></button>
+                <span id="adminCalMonth" class="text-xs font-semibold text-white min-w-[96px] text-center"></span>
+                <button type="button" onclick="shiftAdminCalendar(1)" aria-label="Next month" class="w-7 h-7 rounded-lg bg-white/10 text-gray-200 text-xs"><i class="fa-solid fa-chevron-right"></i></button>
+              </div>
+            </div>
+            <div class="grid grid-cols-7 gap-1 text-[10px] text-gray-400 text-center" aria-hidden="true">
+              <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+            </div>
+            <div id="adminCalendarGrid" class="grid grid-cols-7 gap-1"></div>
+            <div id="adminCalendarDay" class="space-y-1.5"></div>
+          </div>
+        </div>
+
+        <!-- ===== TAB 2: BARBER ROSTER (folders & roster) ===== -->
+        <div id="adminPanel-barbers" role="tabpanel" aria-labelledby="adminTabBtn-barbers" class="admin-panel hidden space-y-3">
           <div class="flex justify-between items-center">
-            <h4 class="text-xs font-bold uppercase tracking-wider text-accent">Barber Folders & Roster (<span id="adminBarberCount">0</span>)</h4>
+            <h4 class="text-xs font-bold uppercase tracking-wider text-accent">Barber Folder &amp; Roster (<span id="adminBarberCount">0</span>)</h4>
             <span class="text-[10px] text-gray-400">Auto-named firstname_lastname_XXX</span>
           </div>
-          <div id="adminBarbersList" class="space-y-2 max-h-44 overflow-y-auto pr-1"></div>
+          <div id="adminBarbersList" class="space-y-2 max-h-80 overflow-y-auto pr-1"></div>
 
           <div class="bg-primary p-3 rounded-xl border border-white/10 space-y-2.5">
             <span class="text-[11px] font-bold text-white block">Add Barber Chair & Folder Upload</span>
@@ -480,97 +543,129 @@
           </div>
         </div>
 
-        <!-- VIP LOYALTY CSV SPREADSHEET -->
-        <div class="space-y-3 border-t border-white/10 pt-4">
-          <h4 class="text-xs font-bold uppercase tracking-wider text-accent">VIP Loyalty Spreadsheet (CSV)</h4>
-          <p class="text-[11px] text-gray-300">Export client phone numbers, points, and stamp balances to Excel / Google Sheets, or import back.</p>
-          <div class="flex gap-2">
-            <button onclick="exportLoyaltyCSV()" class="flex-1 py-2.5 rounded-xl bg-accent text-[#1a1a2e] font-bold text-xs flex items-center justify-center gap-1.5">
-              <i class="fa-solid fa-file-excel"></i> Export CSV Spreadsheet
-            </button>
-            <label class="px-3 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-semibold text-white border border-white/15 cursor-pointer flex items-center gap-1.5">
-              <i class="fa-solid fa-file-arrow-up text-accent"></i> Import CSV
-              <input type="file" id="importCsvInput" accept=".csv" onchange="importLoyaltyCSV(event)" class="hidden" />
-            </label>
+        <!-- ===== TAB 3: CUSTOMER VIP INFORMATION (wallet credit + loyalty spreadsheet) ===== -->
+        <div id="adminPanel-vip" role="tabpanel" aria-labelledby="adminTabBtn-vip" class="admin-panel hidden space-y-5">
+          <div id="adminWalletsSection" class="hidden space-y-2">
+            <div class="flex justify-between items-center">
+              <h4 class="text-xs font-bold uppercase tracking-wider text-accent">VIP Wallet Credit (<span id="adminWalletCount">0</span>)</h4>
+              <button onclick="adminAddWalletCredit()" class="px-2 py-1 rounded bg-accent/20 text-accent text-[10px] font-semibold">Add / Remove Credit</button>
+            </div>
+            <p class="text-[11px] text-gray-300">Client store credit. Card deposits and prepayments are refunded from your Stripe dashboard; wallet bookings go back on the wallet when you cancel them, and the client gets an email if they gave one.</p>
+            <div id="adminWalletsList" class="space-y-1.5 max-h-80 overflow-y-auto pr-1"></div>
+          </div>
+          <p id="adminWalletsDemoNote" class="text-[11px] text-gray-400">VIP wallet credit shows here once the app is connected to the booking server (live mode).</p>
+
+          <div class="space-y-3 border-t border-white/10 pt-4">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-accent">VIP Loyalty Spreadsheet (CSV)</h4>
+            <p class="text-[11px] text-gray-300">Export client phone numbers, points, and stamp balances to Excel / Google Sheets, or import back.</p>
+            <div class="flex gap-2">
+              <button onclick="exportLoyaltyCSV()" class="flex-1 py-2.5 rounded-xl bg-accent text-[#1a1a2e] font-bold text-xs flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-file-excel"></i> Export CSV Spreadsheet
+              </button>
+              <label class="px-3 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-semibold text-white border border-white/15 cursor-pointer flex items-center gap-1.5">
+                <i class="fa-solid fa-file-arrow-up text-accent"></i> Import CSV
+                <input type="file" id="importCsvInput" accept=".csv" onchange="importLoyaltyCSV(event)" class="hidden" />
+              </label>
+            </div>
           </div>
         </div>
 
-        <!-- VIP WALLET CREDIT (live mode) -->
-        <div id="adminWalletsSection" class="hidden space-y-2 border-t border-white/10 pt-4">
-          <div class="flex justify-between items-center">
-            <h4 class="text-xs font-bold uppercase tracking-wider text-accent">VIP Wallet Credit (<span id="adminWalletCount">0</span>)</h4>
-            <button onclick="adminAddWalletCredit()" class="px-2 py-1 rounded bg-accent/20 text-accent text-[10px] font-semibold">Add / Remove Credit</button>
-          </div>
-          <p class="text-[11px] text-gray-300">Client store credit. Card deposits and prepayments are refunded from your Stripe dashboard; wallet bookings go back on the wallet when you cancel them.</p>
-          <div id="adminWalletsList" class="space-y-1.5"></div>
-        </div>
-
-        <!-- Branding Settings -->
-        <div class="space-y-3 border-t border-white/10 pt-4">
-          <h4 class="text-xs font-bold uppercase tracking-wider text-accent">White-Label Tenant Branding</h4>
-          <p id="adminPublishHint" class="hidden text-[11px] text-amber-300 bg-amber-500/10 border border-amber-400/30 rounded-lg px-2.5 py-1.5"></p>
-          <div>
-            <label class="block text-[11px] text-gray-400 mb-1">Shop Name</label>
-            <input type="text" id="cfgShopName" class="w-full rounded-lg bg-primary border border-white/15 px-3 py-1.5 text-xs text-white" />
-          </div>
-          <div>
-            <label class="block text-[11px] text-gray-400 mb-1">Tagline</label>
-            <input type="text" id="cfgTagline" class="w-full rounded-lg bg-primary border border-white/15 px-3 py-1.5 text-xs text-white" />
-          </div>
-          <div class="grid grid-cols-2 gap-2">
+        <!-- ===== TAB 4: ADMIN (application settings, client reviews, import/export) ===== -->
+        <div id="adminPanel-admin" role="tabpanel" aria-labelledby="adminTabBtn-admin" class="admin-panel hidden space-y-5">
+          <div class="space-y-3">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-accent">Application Settings</h4>
+            <p id="adminPublishHint" class="hidden text-[11px] text-amber-300 bg-amber-500/10 border border-amber-400/30 rounded-lg px-2.5 py-1.5"></p>
             <div>
-              <label class="block text-[11px] text-gray-400 mb-1">Primary Dark Hex</label>
-              <input type="color" id="cfgPrimaryColor" class="w-full h-9 rounded-lg bg-primary border border-white/15 p-1" />
+              <label class="block text-[11px] text-gray-400 mb-1">Shop Name</label>
+              <input type="text" id="cfgShopName" class="w-full rounded-lg bg-primary border border-white/15 px-3 py-1.5 text-xs text-white" />
             </div>
             <div>
-              <label class="block text-[11px] text-gray-400 mb-1">Accent Gold Hex</label>
-              <input type="color" id="cfgAccentColor" class="w-full h-9 rounded-lg bg-primary border border-white/15 p-1" />
+              <label class="block text-[11px] text-gray-400 mb-1">Tagline</label>
+              <input type="text" id="cfgTagline" class="w-full rounded-lg bg-primary border border-white/15 px-3 py-1.5 text-xs text-white" />
             </div>
-          </div>
-          <div>
-            <label class="block text-[11px] text-gray-400 mb-1">Deposit Payment Link URL (Stripe / Square)</label>
-            <input type="url" id="cfgPaymentLinkUrl" placeholder="https://buy.stripe.com/..." class="w-full rounded-lg bg-primary border border-white/15 px-3 py-1.5 text-xs text-white" />
-          </div>
-          <div class="space-y-2 rounded-lg border border-white/10 p-2.5">
-            <div class="text-[11px] font-bold text-white">Online Payments <span id="cfgStripeStatus" class="font-normal text-gray-400"></span></div>
             <div class="grid grid-cols-2 gap-2">
               <div>
-                <label for="cfgDepositAmount" class="block text-[11px] text-gray-400 mb-1">Deposit Amount ($)</label>
-                <input type="number" min="0" max="500" step="1" id="cfgDepositAmount" class="w-full rounded-lg bg-primary border border-white/15 px-3 py-1.5 text-xs text-white" />
+                <label class="block text-[11px] text-gray-400 mb-1">Primary Dark Hex</label>
+                <input type="color" id="cfgPrimaryColor" class="w-full h-9 rounded-lg bg-primary border border-white/15 p-1" />
               </div>
               <div>
-                <label for="cfgWalletTopUps" class="block text-[11px] text-gray-400 mb-1">Wallet Top-Ups ($, comma list)</label>
-                <input type="text" id="cfgWalletTopUps" placeholder="25, 50, 100" class="w-full rounded-lg bg-primary border border-white/15 px-3 py-1.5 text-xs text-white" />
+                <label class="block text-[11px] text-gray-400 mb-1">Accent Gold Hex</label>
+                <input type="color" id="cfgAccentColor" class="w-full h-9 rounded-lg bg-primary border border-white/15 p-1" />
               </div>
             </div>
-            <label class="flex items-center gap-2 text-[11px] text-gray-300"><input type="checkbox" id="cfgDepositEnabled" class="accent-[#d4af37]" /> Deposits</label>
-            <label class="flex items-center gap-2 text-[11px] text-gray-300"><input type="checkbox" id="cfgPrepayEnabled" class="accent-[#d4af37]" /> Prepay in full (card)</label>
-            <label class="flex items-center gap-2 text-[11px] text-gray-300"><input type="checkbox" id="cfgWalletEnabled" class="accent-[#d4af37]" /> VIP wallet credit</label>
-            <label class="flex items-center gap-2 text-[11px] text-gray-300"><input type="checkbox" id="cfgRequireDeposit" class="accent-[#d4af37]" /> Require payment when booking (hide Pay at Chair)</label>
+            <div>
+              <label class="block text-[11px] text-gray-400 mb-1">Deposit Payment Link URL (Stripe / Square)</label>
+              <input type="url" id="cfgPaymentLinkUrl" placeholder="https://buy.stripe.com/..." class="w-full rounded-lg bg-primary border border-white/15 px-3 py-1.5 text-xs text-white" />
+            </div>
+            <div class="space-y-2 rounded-lg border border-white/10 p-2.5">
+              <div class="text-[11px] font-bold text-white">Online Payments <span id="cfgStripeStatus" class="font-normal text-gray-400"></span></div>
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label for="cfgDepositAmount" class="block text-[11px] text-gray-400 mb-1">Deposit Amount ($)</label>
+                  <input type="number" min="0" max="500" step="1" id="cfgDepositAmount" class="w-full rounded-lg bg-primary border border-white/15 px-3 py-1.5 text-xs text-white" />
+                </div>
+                <div>
+                  <label for="cfgWalletTopUps" class="block text-[11px] text-gray-400 mb-1">Wallet Top-Ups ($, comma list)</label>
+                  <input type="text" id="cfgWalletTopUps" placeholder="25, 50, 100" class="w-full rounded-lg bg-primary border border-white/15 px-3 py-1.5 text-xs text-white" />
+                </div>
+              </div>
+              <label class="flex items-center gap-2 text-[11px] text-gray-300"><input type="checkbox" id="cfgDepositEnabled" class="accent-[#d4af37]" /> Deposits</label>
+              <label class="flex items-center gap-2 text-[11px] text-gray-300"><input type="checkbox" id="cfgPrepayEnabled" class="accent-[#d4af37]" /> Prepay in full (card)</label>
+              <label class="flex items-center gap-2 text-[11px] text-gray-300"><input type="checkbox" id="cfgWalletEnabled" class="accent-[#d4af37]" /> VIP wallet credit</label>
+              <label class="flex items-center gap-2 text-[11px] text-gray-300"><input type="checkbox" id="cfgRequireDeposit" class="accent-[#d4af37]" /> Require payment when booking (hide Pay at Chair)</label>
+            </div>
+            <div>
+              <label class="block text-[11px] text-gray-400 mb-1">API URL (Cloudflare Worker) — leave blank for demo mode</label>
+              <input type="url" id="cfgApiBaseUrl" placeholder="https://elite-cuts-api.your-subdomain.workers.dev" class="w-full rounded-lg bg-primary border border-white/15 px-3 py-1.5 text-xs text-white" />
+            </div>
+            <button onclick="saveWhiteLabelConfig()" class="w-full py-2.5 rounded-xl gold-gradient text-[#1a1a2e] font-bold text-xs">
+              Apply Settings
+            </button>
           </div>
-          <div>
-            <label class="block text-[11px] text-gray-400 mb-1">API URL (Cloudflare Worker) — leave blank for demo mode</label>
-            <input type="url" id="cfgApiBaseUrl" placeholder="https://elite-cuts-api.your-subdomain.workers.dev" class="w-full rounded-lg bg-primary border border-white/15 px-3 py-1.5 text-xs text-white" />
-          </div>
-          <div>
-            <label for="cfgReviews" class="block text-[11px] text-gray-400 mb-1">Client Reviews — one per line: Name | Stars (1–5) | Review</label>
-            <textarea id="cfgReviews" rows="4" placeholder="Jordan P. | 5 | Best fade in town, booked in seconds." class="w-full rounded-lg bg-primary border border-white/15 px-3 py-1.5 text-xs text-white"></textarea>
-            <label class="mt-1.5 flex items-center gap-2 text-[11px] text-gray-400">
-              <input type="checkbox" id="cfgReviewsAreSamples" class="accent-[#d4af37]" /> Label these as sample reviews (leave on until they're real)
-            </label>
-          </div>
-          <button onclick="saveWhiteLabelConfig()" class="w-full py-2.5 rounded-xl gold-gradient text-[#1a1a2e] font-bold text-xs">
-            Apply Settings
-          </button>
-        </div>
 
-        <div class="border-t border-white/10 pt-3 flex gap-2">
-          <button onclick="exportConfigJSON()" class="flex-1 py-2 rounded-lg bg-white/10 text-xs font-semibold text-white">
-            <i class="fa-solid fa-download mr-1 text-accent"></i> Export Tenant Backup
-          </button>
-          <button onclick="resetDemoData()" class="py-2 px-3 rounded-lg bg-rose-500/20 text-xs font-semibold text-rose-300 border border-rose-500/30">
-            Reset
-          </button>
+          <!-- CLIENT REVIEWS: every review is logged here; ticked ones show on the home screen -->
+          <div id="adminReviewsSection" class="space-y-3 border-t border-white/10 pt-4">
+            <div class="flex justify-between items-center">
+              <h4 class="text-xs font-bold uppercase tracking-wider text-accent">Client Reviews (<span id="adminReviewCount">0</span>)</h4>
+              <span id="adminReviewsNew" class="hidden text-[10px] px-2 py-0.5 rounded bg-rose-500/20 text-rose-200 font-semibold"></span>
+            </div>
+            <p class="text-[11px] text-gray-300">Every review clients leave is logged here. Read it, then tick <span class="text-white font-semibold">Show</span> to put it on the home screen.</p>
+            <label class="flex items-center gap-2 text-[11px] text-gray-400">
+              <input type="checkbox" id="cfgReviewsAreSamples" onchange="saveReviewsAreSamples(this.checked)" class="accent-[#d4af37]" /> Label shown reviews as samples (leave on until they're real)
+            </label>
+            <div id="adminReviewsList" class="space-y-2 max-h-96 overflow-y-auto pr-1"></div>
+            <details class="bg-primary rounded-xl border border-white/10 p-3">
+              <summary class="text-[11px] font-bold text-white cursor-pointer">Add a review by hand (e.g. from Google)</summary>
+              <div class="space-y-2 mt-2.5">
+                <div class="grid grid-cols-3 gap-2">
+                  <input type="text" id="adminNewReviewName" maxlength="60" placeholder="Name" aria-label="Reviewer name" class="col-span-2 rounded-lg bg-[#16213e] border border-white/15 px-2.5 py-1.5 text-xs text-white" />
+                  <select id="adminNewReviewStars" aria-label="Stars" class="rounded-lg bg-[#16213e] border border-white/15 px-2 py-1.5 text-xs text-white">
+                    <option value="5">5 ★</option><option value="4">4 ★</option><option value="3">3 ★</option><option value="2">2 ★</option><option value="1">1 ★</option>
+                  </select>
+                </div>
+                <textarea id="adminNewReviewText" rows="3" maxlength="600" placeholder="What they said" aria-label="Review text" class="w-full rounded-lg bg-[#16213e] border border-white/15 px-2.5 py-1.5 text-xs text-white"></textarea>
+                <button onclick="adminAddReview()" class="w-full py-2 rounded-lg gold-gradient text-[#1a1a2e] font-bold text-xs">Add &amp; Show Review</button>
+              </div>
+            </details>
+          </div>
+
+          <!-- IMPORT / EXPORT BARBERSHOP SETTINGS -->
+          <div class="space-y-2 border-t border-white/10 pt-4">
+            <h4 class="text-xs font-bold uppercase tracking-wider text-accent">Import / Export Barbershop Settings</h4>
+            <p class="text-[11px] text-gray-300">Save the shop's settings (name, colors, services, barbers, hours, payments, reviews) to a file, or load them from one. Client data is not included.</p>
+            <div class="flex gap-2">
+              <button onclick="exportShopSettings()" class="flex-1 py-2 rounded-lg bg-white/10 text-xs font-semibold text-white flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-download text-accent"></i> Export Settings
+              </button>
+              <label class="flex-1 py-2 rounded-lg bg-white/10 text-xs font-semibold text-white cursor-pointer flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-file-arrow-up text-accent"></i> Import Settings
+                <input type="file" id="importSettingsInput" accept=".json,application/json" onchange="importShopSettings(event)" class="hidden" />
+              </label>
+              <button onclick="resetDemoData()" class="py-2 px-3 rounded-lg bg-rose-500/20 text-xs font-semibold text-rose-300 border border-rose-500/30">
+                Reset
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

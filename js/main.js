@@ -8,10 +8,11 @@ import {
 } from './booking.js';
 import { loadWalletBalance, lookupLoyalty, renderWalletCard, topUpWallet } from './loyalty.js';
 import {
-  addNewBarberWithFolder, adminAddWalletCredit, adminResetWalletPin, clearCompletedBookings, closeAdminModal, exportConfigJSON, exportLoyaltyCSV,
-  importLoyaltyCSV, openAdminModal, removeBarber, resetDemoData, saveWhiteLabelConfig, unlockAdmin,
-  updateBookingStatus
+  addNewBarberWithFolder, adminAddWalletCredit, adminResetWalletPin, clearCancelledBookings, closeAdminModal, exportLoyaltyCSV,
+  exportShopSettings, importLoyaltyCSV, importShopSettings, openAdminModal, removeBarber, resetDemoData, saveReviewsAreSamples,
+  saveWhiteLabelConfig, selectAdminCalendarDay, shiftAdminCalendar, switchAdminTab, unlockAdmin, updateBookingStatus
 } from './admin.js';
+import { adminAddReview, deleteReview, submitClientReview, toggleReviewForm, toggleReviewShown } from './reviews.js';
 import { initAppUpdates } from './update.js';
 import {
   applyThemeVariables, dismissPWABanner, listenForInstallPrompt, renderHome, selectLookbookStyle,
@@ -29,8 +30,11 @@ Object.assign(window, {
   // loyalty + VIP wallet credit
   loadWalletBalance, lookupLoyalty, topUpWallet,
   // manager portal
-  addNewBarberWithFolder, adminAddWalletCredit, adminResetWalletPin, clearCompletedBookings, closeAdminModal, exportConfigJSON, exportLoyaltyCSV,
-  importLoyaltyCSV, removeBarber, resetDemoData, saveWhiteLabelConfig, unlockAdmin, updateBookingStatus,
+  addNewBarberWithFolder, adminAddWalletCredit, adminResetWalletPin, clearCancelledBookings, closeAdminModal, exportLoyaltyCSV,
+  exportShopSettings, importLoyaltyCSV, importShopSettings, removeBarber, resetDemoData, saveReviewsAreSamples, saveWhiteLabelConfig,
+  selectAdminCalendarDay, shiftAdminCalendar, switchAdminTab, unlockAdmin, updateBookingStatus,
+  // client reviews (home screen form + Admin > Client Reviews)
+  adminAddReview, deleteReview, submitClientReview, toggleReviewForm, toggleReviewShown,
   // tabs, lookbook, PWA banner + Install app footer
   closeInstallHelp, dismissPWABanner, openInstallApp, selectLookbookStyle, switchTab, triggerPWAInstall
 });

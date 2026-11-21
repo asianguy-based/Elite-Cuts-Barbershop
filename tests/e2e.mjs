@@ -221,6 +221,7 @@ async function coreSuite(browser, vp) {
       await page.fill('#adminPinInput', '1234');
       await page.click('#adminPinGate button:has-text("Unlock")');
       await page.waitForSelector('#adminContent:not(.hidden)');
+      await page.click('#adminTabBtn-appointments');
       const row = page.locator('#adminAppointmentsList > div', { hasText: ref });
       assert(await row.count() === 1, 'booking row present in admin queue');
       assertIncludes(await row.textContent(), `${TOMORROW} 04:30 PM • Mateo Cruz`, 'admin row date/time/barber');
@@ -231,7 +232,15 @@ async function coreSuite(browser, vp) {
       await noHorizontalScroll(page, 'admin');
       await shot(page, `${vp.name}-admin`);
 
+      // ADMIN TABS: one panel at a time
+      for (const t of ['barbers', 'vip', 'admin', 'appointments']) {
+        await page.click(`#adminTabBtn-${t}`);
+        assert(await visible(page, `#adminPanel-${t}`), `${t} tab shows its panel`);
+        assert(await page.locator('[id^="adminPanel-"]:not(.hidden)').count() === 1, `${t}: only one panel visible`);
+      }
+
       // CSV EXPORT
+      await page.click('#adminTabBtn-vip');
       const [download] = await Promise.all([
         page.waitForEvent('download'),
         page.click('button:has-text("Export CSV Spreadsheet")')
@@ -241,7 +250,8 @@ async function coreSuite(browser, vp) {
       assertIncludes(csv, 'Phone,Name,Points,Stamps', 'csv header');
       assertIncludes(csv, '"(555) 777-0101","Test Client",100,1', 'csv row');
 
-      // WHITE-LABEL setting
+      // APPLICATION SETTINGS (Admin tab)
+      await page.click('#adminTabBtn-admin');
       await page.fill('#cfgShopName', 'FADE HOUSE');
       await page.click('button:has-text("Apply Settings")');
       await page.waitForFunction(() => document.getElementById('headerShopName').textContent === 'FADE HOUSE');
@@ -356,6 +366,7 @@ async function nextChairSuite(browser, vp) {
       await page.fill('#adminPinInput', '1234');
       await page.click('#adminPinGate button:has-text("Unlock")');
       await page.waitForSelector('#adminContent:not(.hidden)');
+      await page.click('#adminTabBtn-appointments');
       const row = page.locator('#adminAppointmentsList > div', { hasText: ref });
       assert(await row.count() === 1, 'one-tap booking in admin queue');
       assertIncludes(await row.textContent(), `One Tap (${ref})`, 'admin row client');
