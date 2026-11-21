@@ -1,4 +1,4 @@
-import { api, apiConfigured } from './api.js';
+import { api, apiConfigured, escapeHtml } from './api.js';
 import { shopConfig } from './config.js';
 import { LoyaltyVault, bookings, loyaltyDB, normalizePhone, saveBookings, saveLoyaltyDB } from './storage.js';
 import { switchTab } from './ui.js';
@@ -81,17 +81,17 @@ export function renderBookingStep1() {
   container.innerHTML = shopConfig.services.map(s => {
     const active = currentBooking.serviceIds.includes(s.id);
     return `
-      <div onclick="toggleServiceSelection('${s.id}')" class="glass-card rounded-xl p-3.5 cursor-pointer flex items-center justify-between border ${active ? 'border-accent bg-white/10' : 'border-white/10'}">
+      <div data-id="${escapeHtml(s.id)}" onclick="toggleServiceSelection(this.dataset.id)" class="glass-card rounded-xl p-3.5 cursor-pointer flex items-center justify-between border ${active ? 'border-accent bg-white/10' : 'border-white/10'}">
         <div class="pr-3">
           <div class="flex items-center gap-2">
             <i class="fa-solid ${active ? 'fa-square-check text-accent' : 'fa-square text-gray-500'}"></i>
-            <span class="text-sm font-bold text-white">${s.name}</span>
+            <span class="text-sm font-bold text-white">${escapeHtml(s.name)}</span>
           </div>
-          <p class="text-xs text-gray-400 mt-1">${s.desc}</p>
+          <p class="text-xs text-gray-400 mt-1">${escapeHtml(s.desc)}</p>
         </div>
         <div class="text-right shrink-0">
-          <div class="text-sm font-extrabold text-accent">$${s.price}</div>
-          <div class="text-[10px] text-gray-400">${s.duration} min</div>
+          <div class="text-sm font-extrabold text-accent">$${escapeHtml(s.price)}</div>
+          <div class="text-[10px] text-gray-400">${escapeHtml(s.duration)} min</div>
         </div>
       </div>
     `;
@@ -109,13 +109,13 @@ export function renderBookingStep2() {
   container.innerHTML = shopConfig.barbers.map(b => {
     const active = currentBooking.barberId === b.id;
     return `
-      <div onclick="selectBarber('${b.id}')" class="glass-card rounded-xl p-3.5 cursor-pointer flex items-center justify-between border ${active ? 'border-accent bg-white/10' : 'border-white/10'}">
+      <div data-id="${escapeHtml(b.id)}" onclick="selectBarber(this.dataset.id)" class="glass-card rounded-xl p-3.5 cursor-pointer flex items-center justify-between border ${active ? 'border-accent bg-white/10' : 'border-white/10'}">
         <div class="flex items-center gap-3">
-          <img src="${b.avatar}" class="w-12 h-12 rounded-full object-cover border border-accent" alt="${b.name}" />
+          <img src="${escapeHtml(b.avatar)}" class="w-12 h-12 rounded-full object-cover border border-accent" alt="${escapeHtml(b.name)}" />
           <div>
-            <div class="text-sm font-bold text-white">${b.name}</div>
-            <div class="text-xs text-gray-300">${b.specialty}</div>
-            <div class="text-[10px] text-accent">Folder: /barbers/${b.folder}/</div>
+            <div class="text-sm font-bold text-white">${escapeHtml(b.name)}</div>
+            <div class="text-xs text-gray-300">${escapeHtml(b.specialty)}</div>
+            <div class="text-[10px] text-accent">Folder: /barbers/${escapeHtml(b.folder)}/</div>
           </div>
         </div>
         <i class="fa-solid ${active ? 'fa-circle-check text-accent text-lg' : 'fa-circle text-white/10 text-lg'}"></i>
@@ -169,11 +169,11 @@ export function renderTimeSlots() {
     const isTaken = unavailable(slot);
     const isSelected = currentBooking.time === slot && !isTaken;
     if (isTaken) {
-      return `<button disabled class="py-2.5 rounded-xl bg-white/5 text-gray-600 text-xs font-medium line-through border border-white/5 cursor-not-allowed">${slot}</button>`;
+      return `<button disabled class="py-2.5 rounded-xl bg-white/5 text-gray-600 text-xs font-medium line-through border border-white/5 cursor-not-allowed">${escapeHtml(slot)}</button>`;
     }
     return `
-      <button onclick="selectTimeSlot('${slot}')" class="py-2.5 rounded-xl text-xs font-semibold border transition ${isSelected ? 'gold-gradient text-[#1a1a2e] border-accent font-bold shadow' : 'bg-secondary text-white border-white/10 hover:border-accent/50'}">
-        ${slot}
+      <button data-slot="${escapeHtml(slot)}" onclick="selectTimeSlot(this.dataset.slot)" class="py-2.5 rounded-xl text-xs font-semibold border transition ${isSelected ? 'gold-gradient text-[#1a1a2e] border-accent font-bold shadow' : 'bg-secondary text-white border-white/10 hover:border-accent/50'}">
+        ${escapeHtml(slot)}
       </button>
     `;
   }).join('');
@@ -311,9 +311,9 @@ export function goToBookingStep(step) {
     const { totalCost, totalMin, selected } = updateBookingTotals();
     const barber = shopConfig.barbers.find(b => b.id === currentBooking.barberId) || shopConfig.barbers[0];
     document.getElementById('bookingSummaryBox').innerHTML = `
-      <div class="flex justify-between"><span class="text-gray-400">Services:</span><span class="text-white font-semibold text-right">${selected.map(s => s.name).join(', ')}</span></div>
-      <div class="flex justify-between"><span class="text-gray-400">Master Barber:</span><span class="text-white font-semibold">${barber.name}</span></div>
-      <div class="flex justify-between"><span class="text-gray-400">Date & Time:</span><span class="text-accent font-bold">${currentBooking.date} @ ${currentBooking.time}</span></div>
+      <div class="flex justify-between"><span class="text-gray-400">Services:</span><span class="text-white font-semibold text-right">${escapeHtml(selected.map(s => s.name).join(", "))}</span></div>
+      <div class="flex justify-between"><span class="text-gray-400">Master Barber:</span><span class="text-white font-semibold">${escapeHtml(barber.name)}</span></div>
+      <div class="flex justify-between"><span class="text-gray-400">Date & Time:</span><span class="text-accent font-bold">${escapeHtml(currentBooking.date)} @ ${escapeHtml(currentBooking.time)}</span></div>
       <div class="flex justify-between border-t border-white/10 pt-1.5 mt-1"><span class="text-gray-300 font-semibold">Total Service Value:</span><span class="text-accent font-extrabold text-sm">$${totalCost} (${totalMin} min)</span></div>
     `;
     selectPaymentMode(shopConfig.requireDeposit ? 'deposit' : currentBooking.paymentMode);
@@ -464,6 +464,17 @@ export function sendSMSConfirmation() {
 }
 
 // Drop cached server slot data (used when the API URL changes).
+/** After the shop's services or barbers change, drop picks that no longer exist. */
+export function syncBookingWithConfig() {
+  const serviceIds = shopConfig.services.map(s => s.id);
+  currentBooking.serviceIds = currentBooking.serviceIds.filter(id => serviceIds.includes(id));
+  if (!currentBooking.serviceIds.length && serviceIds.length) currentBooking.serviceIds = [serviceIds[0]];
+  if (!shopConfig.barbers.some(b => b.id === currentBooking.barberId) && shopConfig.barbers.length) {
+    currentBooking.barberId = shopConfig.barbers[0].id;
+  }
+  if (currentBooking.time && !shopConfig.timeSlots.includes(currentBooking.time)) currentBooking.time = '';
+}
+
 export function resetSlotCaches() {
   remoteBookedSlots = { key: '', times: [] };
   nextChairRemote.clear();

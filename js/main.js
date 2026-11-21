@@ -1,8 +1,10 @@
 // Entry point: wires the modules together, exposes inline-handler globals, boots the app.
+import { loadSharedSettings } from './api.js';
 import {
   bookNextChair, downloadICS, goToBookingStep, pickAnotherTime, quickBookBarber, quickBookService,
-  renderTimeSlots, resetBookingFlow, selectBarber, selectPaymentMode, selectTimeSlot,
-  sendSMSConfirmation, submitBooking, toggleServiceSelection
+  renderBookingStep1, renderBookingStep2, renderTimeSlots, resetBookingFlow, resetSlotCaches, selectBarber,
+  selectPaymentMode, selectTimeSlot, sendSMSConfirmation, submitBooking, syncBookingWithConfig,
+  toggleServiceSelection, updateBookingTotals
 } from './booking.js';
 import { lookupLoyalty } from './loyalty.js';
 import {
@@ -32,9 +34,26 @@ Object.assign(window, {
   closeInstallHelp, dismissPWABanner, openInstallApp, selectLookbookStyle, switchTab, triggerPWAInstall
 });
 
+syncBookingWithConfig();
 applyThemeVariables();
 renderHome();
 listenForInstallPrompt();
+
+// Live mode: load the shop profile the manager published (name, colors, reviews, barbers...), so
+// every client sees the same shop. The first paint uses the cached copy; this refreshes it.
+loadSharedSettings().then(result => {
+  if (!result || !result.changed) return;
+  syncBookingWithConfig();
+  resetSlotCaches();
+  applyThemeVariables();
+  renderHome();
+  if (!document.getElementById('view-book').classList.contains('hidden')) {
+    renderBookingStep1();
+    renderBookingStep2();
+    renderTimeSlots();
+    updateBookingTotals();
+  }
+});
 
 // PWA INSTALL & PORTAL ROUTER (?tab=..., ?portal=admin)
 window.addEventListener('load', () => {

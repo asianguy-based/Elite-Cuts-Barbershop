@@ -88,3 +88,12 @@ CREATE TABLE IF NOT EXISTS rate_limits (
   window_start  TEXT NOT NULL,
   count         INTEGER NOT NULL DEFAULT 0
 );
+
+-- Shop profile edited in the Manager Studio (name, colors, reviews, barbers, services, ...).
+-- One row (id = 1) holding a validated JSON document; every client loads it from GET /api/shop.
+-- Before this table existed those edits lived only in the manager's own browser.
+CREATE TABLE IF NOT EXISTS shop_settings (
+  id          INTEGER PRIMARY KEY CHECK (id = 1),
+  data        TEXT NOT NULL CHECK (json_valid(data) AND json_type(data) = 'object'),
+  updated_at  TEXT NOT NULL
+);

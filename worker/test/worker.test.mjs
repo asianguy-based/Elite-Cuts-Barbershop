@@ -290,3 +290,128 @@ test('loyalty CSV neutralises spreadsheet formulas but keeps phone numbers', asy
   const csv = (await call(env, 'GET', '/api/manager/loyalty.csv', undefined, H)).data;
   assert.match(csv, /\n"'=HYPERLINK\(""http:\/\/x"",""hi""\)","\+1 555 010 2030",100,/);
 });
+
+// ---------- shared shop settings (Manager Studio edits every client sees) ----------
+const shopSettings = (over = {}) => ({
+  shopName: 'FADE HOUSE', tagline: 'Cuts on Main', phone: '+1 (555) 222-3333', address: '1 Main St',
+  primaryColor: '#101820', accentColor: '#C9A227', depositAmount: 20, requireDeposit: false,
+  paymentLinkUrl: 'https://buy.stripe.com/test_123', reviewsAreSamples: false,
+  reviews: [{ name: 'Dana R.', stars: 5, text: 'Best fade in town.' }],
+  services: [{ id: 'srv-1', name: 'Cut', price: 40, duration: 45, category: 'Hair', desc: 'Classic cut' }],
+  barbers: [
+    { id: 'brb-1', firstName: 'Marcus', lastName: 'Vance', name: 'Marcus Vance', folder: 'marcus_vance', photoFilename: 'marcus_vance_001.jpg', role: 'Master Barber', specialty: 'Fades', rating: '5.0', avatar: 'https://images.example.com/m.jpg' },
+    { id: 'brb-9', firstName: 'Ana', lastName: 'Ruiz', name: 'Ana Ruiz', folder: 'ana_ruiz', photoFilename: 'ana_ruiz_001.png', role: 'Barber', specialty: 'Tapers', rating: '5.0', avatar: 'data:image/png;base64,iVBORw0KGgo=' }
+  ],
+  lookbook: [{ title: 'Mid Fade', tag: 'Fade', img: 'https://images.example.com/l.jpg' }],
+  timeSlots: ['09:00 AM', '10:00 AM', '11:00 AM'],
+  ...over
+});
+const login = async (env) => ({ 'X-Manager-Token': (await call(env, 'POST', '/api/manager/login', { pin: '4321' })).data.token });
+
+test('shop settings: saved by the manager, read by every client', async () => {
+  const env = newEnv();
+  const empty = await call(env, 'GET', '/api/shop');
+  assert.equal(empty.status, 200);
+  assert.equal(empty.data.settings, null, 'nothing published yet');
+
+  const put = await call(env, 'PUT', '/api/manager/shop', shopSettings(), await login(env));
+  assert.equal(put.status, 200);
+  assert.equal(put.data.settings.shopName, 'FADE HOUSE');
+  assert.equal(put.data.settings.accentColor, '#c9a227', 'colors are normalised');
+
+  // A different client, no token: sees the same shop.
+  const got = await call(env, 'GET', '/api/shop');
+  assert.equal(got.status, 200);
+  assert.equal(got.data.settings.shopName, 'FADE HOUSE');
+  assert.deepEqual(got.data.settings.reviews, [{ name: 'Dana R.', stars: 5, text: 'Best fade in town.' }]);
+  assert.equal(got.data.settings.barbers.length, 2);
+  assert.ok(got.data.updatedAt);
+  assert.equal(got.headers.get('cache-control'), 'no-cache');
+});
+
+test('shop settings: a partial save keeps the other fields', async () => {
+  const env = newEnv();
+  const H = await login(env);
+  await call(env, 'PUT', '/api/manager/shop', shopSettings(), H);
+  const r = await call(env, 'PUT', '/api/manager/shop', { reviews: [{ name: 'Lee', stars: '4', text: 'Quick and clean.' }], reviewsAreSamples: false }, H);
+  assert.equal(r.status, 200);
+  const got = (await call(env, 'GET', '/api/shop')).data.settings;
+  assert.equal(got.shopName, 'FADE HOUSE');
+  assert.equal(got.barbers.length, 2);
+  assert.deepEqual(got.reviews, [{ name: 'Lee', stars: 4, text: 'Quick and clean.' }]);
+});
+
+test('shop settings: writing needs a valid manager session', async () => {
+  const env = newEnv();
+  assert.equal((await call(env, 'PUT', '/api/manager/shop', shopSettings())).status, 401);
+  assert.equal((await call(env, 'PUT', '/api/manager/shop', shopSettings(), { 'X-Manager-Token': 'f'.repeat(64) })).status, 401);
+  const H = await login(env);
+  await call(env, 'POST', '/api/manager/logout', undefined, H);
+  assert.equal((await call(env, 'PUT', '/api/manager/shop', shopSettings(), H)).status, 401, 'logged-out token is refused');
+  assert.equal((await call(env, 'GET', '/api/shop')).data.settings, null, 'nothing was written');
+  // CORS preflight allows PUT from the shop's own site
+  const pre = await call(env, 'OPTIONS', '/api/manager/shop');
+  assert.match(pre.headers.get('access-control-allow-methods'), /PUT/);
+});
+
+test('shop settings: every field is checked before it is stored', async () => {
+  const env = newEnv();
+  const H = await login(env);
+  const bad = async (body, re) => {
+    const r = await call(env, 'PUT', '/api/manager/shop', body, H);
+    assert.equal(r.status, 400, JSON.stringify(body).slice(0, 80));
+    if (re) assert.match(r.data.error, re);
+  };
+  await bad({ apiBaseUrl: 'https://evil.example' }, /Unknown settings: apiBaseUrl/);
+  await bad({ isAdmin: true }, /Unknown settings/);
+  await bad([], /JSON object/);
+  await bad({ shopName: '' }, /shopName is required/);
+  await bad({ shopName: 'x'.repeat(61) }, /at most 60/);
+  await bad({ primaryColor: 'red; background:url(x)' }, /primaryColor/);
+  await bad({ paymentLinkUrl: 'javascript:alert(1)' }, /https/);
+  await bad({ paymentLinkUrl: 'http://buy.stripe.com/x' }, /https/);
+  await bad({ phone: '555<script>' }, /phone/);
+  await bad({ reviews: [{ name: 'A', stars: 9, text: 'hi' }] }, /stars/);
+  await bad({ reviews: [{ name: 'A', stars: 5, text: '' }] }, /text is required/);
+  await bad({ reviews: 'nope' }, /list/);
+  await bad({ services: [] }, /1 to 30/);
+  await bad({ services: [{ id: "x');alert(1);('", name: 'Cut', price: 1, duration: 30 }] }, /id must be/);
+  await bad({ services: [{ id: 'a', name: 'Cut', price: 1, duration: 30 }, { id: 'a', name: 'Cut 2', price: 1, duration: 30 }] }, /unique/);
+  await bad({ barbers: [{ ...shopSettings().barbers[0], avatar: 'javascript:alert(1)' }] }, /https/);
+  await bad({ barbers: [{ ...shopSettings().barbers[0], avatar: 'data:image/svg+xml;base64,PHN2Zz4=' }] }, /PNG, JPEG/);
+  await bad({ barbers: [{ ...shopSettings().barbers[0], avatar: 'data:image/png;base64,' + 'A'.repeat(400001) }] }, /too large/);
+  await bad({ barbers: [{ ...shopSettings().barbers[0], folder: '../etc' }] }, /folder/);
+  await bad({ lookbook: [{ title: 'x', tag: 'y', img: 'ftp://x/y.jpg' }] }, /https/);
+  await bad({ timeSlots: ['9am'] }, /09:00 AM/);
+  await bad({ timeSlots: ['09:00 AM', '09:00 AM'] }, /repeat/);
+  await bad({ requireDeposit: 'yes' }, /true or false/);
+  await bad({ depositAmount: -5 }, /depositAmount/);
+  const notJson = await call(env, 'PUT', '/api/manager/shop', '{not json', H);
+  assert.equal(notJson.status, 400);
+  assert.equal((await call(env, 'GET', '/api/shop')).data.settings, null, 'no bad input was stored');
+});
+
+test('shop settings: oversized saves are refused', async () => {
+  const env = newEnv();
+  const H = await login(env);
+  const photo = 'data:image/jpeg;base64,' + 'A'.repeat(390000);
+  const barbers = Array.from({ length: 5 }, (_, i) => ({ ...shopSettings().barbers[0], id: `brb-${i}`, avatar: photo }));
+  const r = await call(env, 'PUT', '/api/manager/shop', { barbers }, H);
+  assert.equal(r.status, 413);
+});
+
+test('bookings follow the published barbers and time slots', async () => {
+  const env = newEnv();
+  await call(env, 'PUT', '/api/manager/shop', shopSettings(), await login(env));
+  // barber name comes from the server, not from what the client sent
+  const ok = await call(env, 'POST', '/api/bookings', booking({ barberId: 'brb-9', barberName: '<img src=x onerror=alert(1)>' }));
+  assert.equal(ok.status, 201);
+  assert.equal(ok.data.booking.barberName, 'Ana Ruiz');
+  // a barber or time the shop doesn't have is refused
+  const ghost = await call(env, 'POST', '/api/bookings', booking({ barberId: 'brb-2' }));
+  assert.equal(ghost.status, 400);
+  assert.match(ghost.data.error, /barbers/);
+  const late = await call(env, 'POST', '/api/bookings', booking({ time: '06:30 PM' }));
+  assert.equal(late.status, 400);
+  assert.match(late.data.error, /time slots/);
+});

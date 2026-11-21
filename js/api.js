@@ -1,4 +1,4 @@
-import { shopConfig } from './config.js';
+import { applySharedSettings, pickShared, shopConfig } from './config.js';
 
 // Anything that came from a booking (names, times, notes...) was typed by a stranger. Escape it before
 // it goes into innerHTML, or a booking named with HTML in it runs code in the manager's browser.
@@ -25,4 +25,38 @@ export async function api(path, opts = {}) {
   const isJson = (res.headers.get('content-type') || '').includes('application/json');
   const data = isJson ? await res.json().catch(() => ({})) : await res.text();
   return { ok: res.ok, status: res.status, data };
+}
+
+// SHARED SHOP PROFILE. Returns { published, changed } or null in demo mode / when the API is unreachable.
+export async function loadSharedSettings() {
+  if (!apiConfigured()) return null;
+  try {
+    const res = await api('/api/shop');
+    if (!res || !res.ok || !res.data || typeof res.data !== 'object') return null;
+    const published = !!res.data.settings;
+    return { published, changed: published ? applySharedSettings(res.data.settings) : false };
+  } catch (err) {
+    console.warn('Shop settings fetch failed, using cached settings:', err);
+    return null;
+  }
+}
+
+/**
+ * Publish a config (the shared fields only) so every client sees it. Needs the manager token.
+ * Returns { ok: true } after applying what the server stored, or { ok: false, error }.
+ */
+export async function publishSharedSettings(cfg) {
+  let res;
+  try {
+    res = await api('/api/manager/shop', { method: 'PUT', body: pickShared(cfg) });
+  } catch (err) {
+    return { ok: false, error: 'Could not reach the booking server.' };
+  }
+  if (!res || !res.ok) {
+    if (res && res.status === 401) sessionStorage.removeItem(MANAGER_TOKEN_KEY);
+    const msg = res && res.data && res.data.error;
+    return { ok: false, error: res && res.status === 401 ? 'Your manager login expired. Close the studio and log in again.' : (msg || `Server error ${res && res.status}`) };
+  }
+  applySharedSettings(res.data.settings);
+  return { ok: true };
 }

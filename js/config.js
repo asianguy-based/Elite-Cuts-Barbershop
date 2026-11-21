@@ -1,4 +1,7 @@
 // Shop configuration: defaults + the tenant overrides saved in localStorage.
+// With the Worker backend, the shared shop profile (SHARED_FIELDS) is published by the manager to
+// GET /api/shop and every client loads it on start; localStorage then only caches it for a fast,
+// offline-friendly first paint. apiBaseUrl stays per-device, since it is how the app finds the API.
 
 export const STORAGE_KEY_CONFIG = 'ELITE_CUTS_H5_CONFIG_V1';
 
@@ -45,4 +48,32 @@ export const shopConfig = Object.assign({}, DEFAULT_CONFIG, JSON.parse(localStor
 
 export function saveConfig() {
   localStorage.setItem(STORAGE_KEY_CONFIG, JSON.stringify(shopConfig));
+}
+
+// Fields the manager publishes to every client through PUT /api/manager/shop. Must match
+// SETTINGS_FIELDS in worker/src/index.js (the server rejects any other key).
+export const SHARED_FIELDS = [
+  'shopName', 'tagline', 'phone', 'address', 'primaryColor', 'accentColor', 'depositAmount',
+  'requireDeposit', 'paymentLinkUrl', 'reviewsAreSamples', 'reviews', 'services', 'barbers',
+  'lookbook', 'timeSlots'
+];
+
+/** The shared part of a config object, ready to publish. */
+export function pickShared(cfg = shopConfig) {
+  const out = {};
+  SHARED_FIELDS.forEach(k => { if (cfg[k] !== undefined) out[k] = cfg[k]; });
+  return out;
+}
+
+/** Copy published settings from the API into shopConfig (and the local cache). Returns true if anything changed. */
+export function applySharedSettings(settings) {
+  if (!settings || typeof settings !== 'object') return false;
+  let changed = false;
+  SHARED_FIELDS.forEach(k => {
+    if (settings[k] === undefined) return;
+    if (JSON.stringify(shopConfig[k]) !== JSON.stringify(settings[k])) changed = true;
+    shopConfig[k] = settings[k];
+  });
+  if (changed) saveConfig();
+  return changed;
 }
