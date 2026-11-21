@@ -82,7 +82,7 @@ function walletCredentials() {
 }
 
 const money = (n) => `$${Number(n).toFixed(2)}`;
-const KIND_LABEL = { topup: 'Top-up', spend: 'Booking', refund: 'Refund', adjustment: 'Shop adjustment' };
+const KIND_LABEL = { topup: 'Top-up', spend: 'Booking', refund: 'Credit back (cancelled booking)', adjustment: 'Shop adjustment' };
 
 export async function loadWalletBalance() {
   const creds = walletCredentials();
@@ -105,6 +105,7 @@ export async function loadWalletBalance() {
 export async function topUpWallet(amount) {
   const creds = walletCredentials();
   if (!creds) return;
+  if (!confirm(`Add $${amount} to your VIP wallet?\n\nWallet credit is non-refundable store credit, good for cuts and products only. It can't be cashed out or refunded to your card.`)) return;
   let res;
   try {
     res = await api('/api/wallet/topup', { method: 'POST', body: { ...creds, amount } });

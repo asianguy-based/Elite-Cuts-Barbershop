@@ -391,6 +391,7 @@
           <span id="walletBalanceDisplay" class="text-sm font-extrabold text-accent">—</span>
         </div>
         <p class="text-[11px] text-gray-400">Load credit and pay for cuts in one tap. Your first top-up sets a 4–6 digit wallet PIN for the phone number above.</p>
+        <p id="walletTerms" class="text-[11px] text-amber-200 bg-amber-500/10 border border-amber-400/30 rounded-lg px-2.5 py-1.5"><i class="fa-solid fa-circle-info mr-1"></i> <strong>Non-refundable.</strong> Wallet credit is store credit, good for cuts and products only. It can't be cashed out or refunded to your card.</p>
         <div class="flex gap-2">
           <input type="password" inputmode="numeric" autocomplete="off" maxlength="6" id="walletPinInput" placeholder="Wallet PIN" aria-label="Wallet PIN" class="flex-1 rounded-xl bg-secondary border border-white/15 px-3.5 py-2 text-sm text-white focus:outline-none focus:border-accent" />
           <button onclick="loadWalletBalance()" class="px-4 py-2 rounded-xl bg-white/10 text-white font-bold text-xs">Check Balance</button>
@@ -496,8 +497,11 @@
         <div id="adminPanel-appointments" role="tabpanel" aria-labelledby="adminTabBtn-appointments" class="admin-panel space-y-5">
           <div class="space-y-2">
             <div class="flex justify-between items-center">
-              <h4 class="text-xs font-bold uppercase tracking-wider text-accent">Appointments Queue (<span id="adminBookingCount">0</span>)</h4>
-              <button onclick="clearCancelledBookings()" class="text-[11px] text-gray-400 hover:text-white">Clear Cancelled</button>
+              <div>
+                <h4 class="text-xs font-bold uppercase tracking-wider text-accent">Today's Appointments Queue (<span id="adminBookingCount">0</span>)</h4>
+                <p id="adminQueueDate" class="text-[11px] text-gray-400">Today only. Use the calendar below for other dates.</p>
+              </div>
+              <button onclick="clearCancelledBookings()" class="text-[11px] text-gray-400 hover:text-white shrink-0">Clear Cancelled</button>
             </div>
             <div id="adminAppointmentsList" class="space-y-2 max-h-80 overflow-y-auto pr-1"></div>
           </div>
@@ -515,6 +519,7 @@
               <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
             </div>
             <div id="adminCalendarGrid" class="grid grid-cols-7 gap-1"></div>
+            <h4 class="text-xs font-bold uppercase tracking-wider text-accent pt-2">Appointments for Selected Date</h4>
             <div id="adminCalendarDay" class="space-y-1.5"></div>
           </div>
         </div>
@@ -550,7 +555,7 @@
               <h4 class="text-xs font-bold uppercase tracking-wider text-accent">VIP Wallet Credit (<span id="adminWalletCount">0</span>)</h4>
               <button onclick="adminAddWalletCredit()" class="px-2 py-1 rounded bg-accent/20 text-accent text-[10px] font-semibold">Add / Remove Credit</button>
             </div>
-            <p class="text-[11px] text-gray-300">Client store credit. Card deposits and prepayments are refunded from your Stripe dashboard; wallet bookings go back on the wallet when you cancel them, and the client gets an email if they gave one.</p>
+            <p class="text-[11px] text-gray-300">Client store credit (non-refundable, good for cuts and products only). Card deposits and prepayments are refunded from your Stripe dashboard; wallet bookings go back on the wallet when you cancel them, and the client gets an email if they gave one.</p>
             <div id="adminWalletsList" class="space-y-1.5 max-h-80 overflow-y-auto pr-1"></div>
           </div>
           <p id="adminWalletsDemoNote" class="text-[11px] text-gray-400">VIP wallet credit shows here once the app is connected to the booking server (live mode).</p>

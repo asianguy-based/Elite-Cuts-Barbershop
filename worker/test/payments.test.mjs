@@ -243,6 +243,8 @@ test('VIP wallet: PIN-protected top-up, credited once by the webhook, spent on a
     assert.equal(form.get('line_items[0][price_data][unit_amount]'), '5000');
     assert.equal(form.get('metadata[kind]'), 'wallet_topup');
     assert.equal(form.get('metadata[phone]'), phone);
+    assert.match(form.get('line_items[0][price_data][product_data][description]'), /^Non-refundable store credit .*cuts and products only/);
+    assert.match(form.get('custom_text[submit][message]'), /non-refundable store credit/);
     assert.equal((await call(env, 'POST', '/api/wallet/topup', { phone, pin: '9999', amount: 50 })).status, 401, 'PIN is set now');
   } finally { s.restore(); }
 

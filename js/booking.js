@@ -141,7 +141,7 @@ export function renderBookingStep2() {
     return `
       <div data-id="${escapeHtml(b.id)}" onclick="selectBarber(this.dataset.id)" class="glass-card rounded-xl p-3.5 cursor-pointer flex items-center justify-between border ${active ? 'border-accent bg-white/10' : 'border-white/10'}">
         <div class="flex items-center gap-3">
-          <img src="${escapeHtml(b.avatar)}" class="w-12 h-12 rounded-full object-cover border border-accent" alt="${escapeHtml(b.name)}" />
+          <img src="${escapeHtml(b.avatar)}" onerror="this.onerror=null;this.src='icons/icon-192.png'" class="w-12 h-12 rounded-full object-cover border border-accent" alt="${escapeHtml(b.name)}" />
           <div>
             <div class="text-sm font-bold text-white">${escapeHtml(b.name)}</div>
             <div class="text-xs text-gray-300">${escapeHtml(b.specialty)}</div>

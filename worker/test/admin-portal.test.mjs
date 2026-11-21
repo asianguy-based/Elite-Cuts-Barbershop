@@ -133,6 +133,7 @@ test('wallet credit back: refunded once, client emailed, phone taken off the can
   assert.match(sent.body.subject, /\$40\.00 is back in your VIP wallet/);
   assert.match(sent.body.text, new RegExp(`${bk.refCode}.*cancelled`));
   assert.match(sent.body.text, /balance is now \$50\.00/);
+  assert.match(sent.body.text, /non-refundable store credit, good for cuts and products only/);
 
   assert.equal((await call(env, 'POST', '/api/wallet', { phone: '5550102030', pin: '1234' })).data.balance, 50, 'credit back once');
   const history = (await call(env, 'GET', '/api/loyalty?phone=5550102030')).data.history;
