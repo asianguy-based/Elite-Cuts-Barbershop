@@ -47,7 +47,6 @@ export function renderHome() {
         </div>
       </div>
       <div class="text-[11px] text-gray-300 mt-2 font-medium">${escapeHtml(b.specialty)}</div>
-      <div class="text-[10px] text-gray-400 mt-0.5">Folder: /barbers/${escapeHtml(b.folder)}/</div>
     </div>
   `).join('');
 
@@ -124,6 +123,8 @@ export function switchTab(tab) {
     navBtn.classList.add('text-gray-400');
   });
   document.getElementById(`view-${tab}`).classList.remove('hidden');
+  // The "Back to Shop" bar belongs to the sub-pages only, never the home view.
+  document.getElementById('subPageHeader')?.classList.toggle('hidden', tab === 'home');
   const activeNav = document.getElementById(`nav-${tab}`);
   activeNav.classList.remove('text-gray-400');
   activeNav.classList.add('text-accent');

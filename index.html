@@ -159,7 +159,7 @@
 
     <!-- ================= VIEW 2: 4-STEP INTERACTIVE BOOKING ================= -->
     <!-- REUSABLE SUB-PAGE HEADER WITH BACK BUTTON -->
-<div class="flex items-center justify-between pb-2 border-b border-white/10">
+<div id="subPageHeader" class="hidden flex items-center justify-between pb-2 border-b border-white/10">
   <button onclick="switchTab('home')" class="flex items-center gap-1.5 text-xs font-semibold text-accent hover:opacity-80 transition py-1 px-2.5 rounded-lg bg-white/5 border border-white/10">
     <i class="fa-solid fa-arrow-left text-[10px]"></i> Back to Shop
   </button>
@@ -417,7 +417,7 @@
         <div class="space-y-3 border-t border-white/10 pt-4">
           <div class="flex justify-between items-center">
             <h4 class="text-xs font-bold uppercase tracking-wider text-accent">Barber Folders & Roster (<span id="adminBarberCount">0</span>)</h4>
-            <span class="text-[10px] text-gray-400">Auto-naming `firstname_lastname_XXX`</span>
+            <span class="text-[10px] text-gray-400">Auto-named firstname_lastname_XXX</span>
           </div>
           <div id="adminBarbersList" class="space-y-2 max-h-44 overflow-y-auto pr-1"></div>
 
