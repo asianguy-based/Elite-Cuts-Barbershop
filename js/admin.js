@@ -1,4 +1,4 @@
-import { MANAGER_TOKEN_KEY, api, apiConfigured, escapeHtml, loadSharedSettings, publishSharedSettings } from './api.js';
+import { MANAGER_TOKEN_KEY, api, apiConfigured, escapeHtml, loadPaymentsInfo, loadSharedSettings, paymentsInfo, publishSharedSettings } from './api.js';
 import { refreshNextChair, renderNextChair, resetSlotCaches, syncBookingWithConfig } from './booking.js';
 import { STORAGE_KEY_CONFIG, pickShared, saveConfig, shopConfig } from './config.js';
 import { LoyaltyVault, STORAGE_KEY_BOOKINGS, STORAGE_KEY_LOYALTY, bookings, loyaltyDB, normalizePhone, saveBookings, saveLoyaltyDB, setBookings } from './storage.js';
@@ -86,6 +86,18 @@ function fillSettingsForm() {
   document.getElementById('cfgApiBaseUrl').value = shopConfig.apiBaseUrl || '';
   document.getElementById('cfgReviews').value = reviewsToText(shopConfig.reviews);
   document.getElementById('cfgReviewsAreSamples').checked = !!shopConfig.reviewsAreSamples;
+  document.getElementById('cfgDepositAmount').value = shopConfig.depositAmount ?? 15;
+  document.getElementById('cfgWalletTopUps').value = (shopConfig.walletTopUps || [25, 50, 100]).join(', ');
+  document.getElementById('cfgDepositEnabled').checked = shopConfig.depositEnabled !== false;
+  document.getElementById('cfgPrepayEnabled').checked = shopConfig.prepayEnabled !== false;
+  document.getElementById('cfgWalletEnabled').checked = shopConfig.walletEnabled !== false;
+  document.getElementById('cfgRequireDeposit').checked = !!shopConfig.requireDeposit;
+  const info = apiConfigured() ? paymentsInfo : null;
+  document.getElementById('cfgStripeStatus').textContent = !apiConfigured() ? '(demo mode: payment link only)'
+    : !info ? ''
+    : info.stripe ? (info.testMode ? '(Stripe TEST mode: no real money)' : '(Stripe LIVE)')
+    : info.liveKeyBlocked ? '(Stripe live key ignored: set a test key)'
+    : '(Stripe not set up: deposits use the payment link)';
 }
 
 function setPublishHint(msg) {
@@ -147,9 +159,13 @@ export async function unlockAdmin() {
   }
   document.getElementById('adminPinGate').classList.add('hidden');
   document.getElementById('adminContent').classList.remove('hidden');
-  if (apiConfigured()) await syncSettingsFromServer();
+  if (apiConfigured()) {
+    await loadPaymentsInfo();
+    await syncSettingsFromServer();
+  }
   renderAdminQueue();
   renderAdminBarbers();
+  renderAdminWallets();
 }
 
 export let remoteBookings = null; // manager list loaded from the API (live mode only)
@@ -178,7 +194,7 @@ export async function renderAdminQueue() {
     <div class="p-2.5 rounded-xl bg-primary border border-white/10 flex items-center justify-between text-xs">
       <div>
         <div class="font-bold text-white">${escapeHtml(b.clientName)} <span class="text-accent">(${escapeHtml(b.refCode)})</span></div>
-        <div class="text-[11px] text-gray-400">${escapeHtml(b.date)} ${escapeHtml(b.time)} • ${escapeHtml(b.barberName)} • <span class="text-gray-300">${escapeHtml(b.status || '')}</span></div>
+        <div class="text-[11px] text-gray-400">${escapeHtml(b.date)} ${escapeHtml(b.time)} • ${escapeHtml(b.barberName)} • <span class="text-gray-300">${escapeHtml(b.status || '')}</span>${payLabel(b)}</div>
       </div>
       <div class="flex gap-1">
         ${apiConfigured() && b.paymentMode === 'deposit' && !b.paid ? `<button data-id="${escapeHtml(b.id)}" onclick="updateBookingStatus(this.dataset.id, 'Paid')" class="px-2 py-1 rounded bg-accent/20 text-accent text-[10px]">Paid</button>` : ''}
@@ -187,6 +203,14 @@ export async function renderAdminQueue() {
       </div>
     </div>
   `).join('');
+}
+
+const PAY_LABELS = { deposit: 'Deposit', prepay: 'Prepaid', wallet: 'Wallet', chair: 'At chair' };
+function payLabel(b) {
+  const opt = b.payOption || b.paymentMode;
+  if (!opt || !PAY_LABELS[opt]) return '';
+  const amt = b.amountDue ? ` $${escapeHtml(b.amountDue)}` : '';
+  return ` • <span class="text-accent">${PAY_LABELS[opt]}${amt}</span>`;
 }
 
 export async function updateBookingStatus(id, status) {
@@ -349,6 +373,12 @@ export async function saveWhiteLabelConfig() {
     primaryColor: document.getElementById('cfgPrimaryColor').value,
     accentColor: document.getElementById('cfgAccentColor').value,
     paymentLinkUrl: document.getElementById('cfgPaymentLinkUrl').value.trim(),
+    depositAmount: Math.max(0, Math.min(500, Math.round(Number(document.getElementById('cfgDepositAmount').value) || 0))),
+    depositEnabled: document.getElementById('cfgDepositEnabled').checked,
+    prepayEnabled: document.getElementById('cfgPrepayEnabled').checked,
+    walletEnabled: document.getElementById('cfgWalletEnabled').checked,
+    requireDeposit: document.getElementById('cfgRequireDeposit').checked,
+    walletTopUps: parseTopUps(document.getElementById('cfgWalletTopUps').value),
     reviews: textToReviews(document.getElementById('cfgReviews').value),
     reviewsAreSamples: document.getElementById('cfgReviewsAreSamples').checked
   };
@@ -372,6 +402,66 @@ export async function saveWhiteLabelConfig() {
   renderHome();
   renderAdminBarbers();
   alert('Settings Updated!' + note);
+}
+
+/** "25, 50, 100" -> [25, 50, 100]: whole dollars $5-$500, no repeats, at most 6 (the server checks the same). */
+export function parseTopUps(text) {
+  const list = [...new Set(String(text).split(/[\s,]+/).map(Number).filter(n => Number.isInteger(n) && n >= 5 && n <= 500))].sort((a, b) => a - b).slice(0, 6);
+  return list.length ? list : [25, 50, 100];
+}
+
+// VIP WALLET CREDIT (live mode): balances, add/remove credit (cash loads, goodwill, fixes), PIN reset.
+export async function renderAdminWallets() {
+  const section = document.getElementById('adminWalletsSection');
+  if (!section) return;
+  const live = apiConfigured() && sessionStorage.getItem(MANAGER_TOKEN_KEY);
+  section.classList.toggle('hidden', !live);
+  if (!live) return;
+  let wallets = [];
+  try {
+    const res = await api('/api/manager/wallets');
+    if (res.ok) wallets = res.data.wallets || [];
+    else if (res.status === 404) { section.classList.add('hidden'); return; }   // Worker without payments yet
+  } catch (err) {
+    console.warn('Wallets fetch failed:', err);
+  }
+  document.getElementById('adminWalletCount').textContent = wallets.length;
+  document.getElementById('adminWalletsList').innerHTML = wallets.length ? wallets.map(w => `
+    <div class="p-2.5 rounded-xl bg-primary border border-white/10 flex items-center justify-between text-xs">
+      <div>
+        <div class="font-bold text-white">${escapeHtml(w.name || 'Client')} <span class="text-gray-400 font-normal">${escapeHtml(w.phone)}</span></div>
+        <div class="text-[11px] text-accent font-semibold">$${escapeHtml(Number(w.balance).toFixed(2))}${w.hasPin ? '' : ' <span class="text-gray-400 font-normal">• no PIN set</span>'}</div>
+      </div>
+      <button data-phone="${escapeHtml(w.phone)}" onclick="adminResetWalletPin(this.dataset.phone)" class="px-2 py-1 rounded bg-white/10 text-gray-200 text-[10px]">Reset PIN</button>
+    </div>
+  `).join('') : `<div class="text-xs text-gray-400 py-1">No wallets yet.</div>`;
+}
+
+export async function adminAddWalletCredit() {
+  const phone = (prompt('Client phone number:') || '').replace(/\D/g, '');
+  if (!phone) return;
+  const amount = Number(prompt('Amount in dollars. Use a minus sign to remove credit (e.g. -10):') || '');
+  if (!Number.isFinite(amount) || amount === 0) return;
+  const note = prompt('Note (optional, e.g. "Cash load"):') || '';
+  try {
+    const res = await api(`/api/manager/wallets/${encodeURIComponent(phone)}/adjust`, { method: 'POST', body: { amount, note } });
+    if (!res.ok) { alert('Not saved: ' + ((res.data && res.data.error) || res.status)); return; }
+    alert(`New balance: $${Number(res.data.balance).toFixed(2)}`);
+  } catch (err) {
+    alert('Could not reach the booking server.');
+  }
+  renderAdminWallets();
+}
+
+export async function adminResetWalletPin(phone) {
+  if (!confirm(`Reset the wallet PIN for ${phone}? The next PIN the client enters becomes the new one, so do this with the client in the shop.`)) return;
+  try {
+    const res = await api(`/api/manager/wallets/${encodeURIComponent(phone)}/reset-pin`, { method: 'POST' });
+    if (!res.ok) alert('Reset failed: ' + ((res.data && res.data.error) || res.status));
+  } catch (err) {
+    alert('Could not reach the booking server.');
+  }
+  renderAdminWallets();
 }
 
 export function exportConfigJSON() {

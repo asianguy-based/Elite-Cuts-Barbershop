@@ -19,11 +19,24 @@
  *   GET   /api/shop                                          -> { settings, updatedAt }  (public shop profile)
  *   PUT   /api/manager/shop     { ...settings }              -> { settings, updatedAt }  (X-Manager-Token)
  *   POST  /api/webhook/stripe                                -> { received: true }
+ *   GET   /api/payments                                      -> { stripe, testMode, ... }  (which online options work)
+ *   POST  /api/wallet          { phone, pin }                -> { balance, history }    (VIP wallet credit)
+ *   POST  /api/wallet/topup    { phone, pin, amount, name }  -> { checkoutUrl }
+ *   GET   /api/manager/wallets                               -> { wallets }             (X-Manager-Token)
+ *   POST  /api/manager/wallets/:phone/adjust { amount, note } -> { balance }            (X-Manager-Token)
+ *   POST  /api/manager/wallets/:phone/reset-pin               -> { ok }                 (X-Manager-Token)
+ *
+ * Payments (see migrations/0001_payments.sql): POST /api/bookings takes paymentMode
+ *   deposit | prepay | wallet | chair. Deposit and prepay open a Stripe Checkout page (amounts are worked out
+ *   here from the published shop settings, never taken from the client); wallet bookings are paid from the
+ *   client's store credit on the spot. Webhooks mark bookings paid and credit wallet top-ups.
  *
  * Secrets: MANAGER_PIN (required)
+ *          STRIPE_SECRET_KEY — creates Checkout pages. TEST keys only (sk_test_/rk_test_): a live key is
+ *            ignored for checkout unless the var STRIPE_ALLOW_LIVE is "true". Also re-checks webhooks
+ *            when there is no webhook secret.
  *          STRIPE_WEBHOOK_SECRET (recommended) — verifies Stripe webhook signatures
- *          STRIPE_SECRET_KEY (fallback) — with no webhook secret, each webhook's checkout session is
- *            re-fetched from Stripe and must be paid. With neither, webhooks are refused.
+ *            With neither secret, webhooks are refused.
  * Vars:    ALLOWED_ORIGINS  comma-separated allow-list of browser origins; "https://*.example.pages.dev"
  *                           also matches preview subdomains; "*" allows any (also reads ALLOWED_ORIGIN)
  */
@@ -40,6 +53,14 @@ const BOOKINGS_PER_HOUR = 10;      // new bookings per client address per hour
 const LOOKUPS_PER_HOUR = 30;       // loyalty lookups per client address per hour
 const LATE_PER_HOUR = 10;          // "running late" calls per client address per hour
 const BOOK_AHEAD_DAYS = 120;       // furthest date a client can book
+const PAY_OPTIONS = ['deposit', 'prepay', 'wallet', 'chair'];
+const DEFAULT_DEPOSIT = 15;        // dollars, when the shop hasn't published its own deposit amount
+const CHECKOUT_MINUTES = 31;       // Stripe's minimum Checkout lifetime is 30 minutes; unpaid bookings free up after it
+const WALLET_MIN_TOPUP = 5, WALLET_MAX_TOPUP = 500;   // whole dollars per top-up
+const WALLET_PIN = /^\d{4,6}$/;
+const WALLET_PER_HOUR = 30;        // wallet balance checks / top-ups per client address per hour
+const WALLET_PIN_MAX_FAILS = 5;    // wrong wallet PINs per phone before a lockout
+const PBKDF2_ITERATIONS = 100000;  // the most Workers' WebCrypto allows
 const enc = new TextEncoder();
 
 // ---------- small helpers (exported for unit tests) ----------
@@ -166,6 +187,8 @@ export function rowToBooking(r) {
   if (r.paid_at) b.paidAt = r.paid_at;
   if (r.updated_at) b.updatedAt = r.updated_at;
   if (r.late_minutes != null) b.lateMinutes = r.late_minutes;
+  b.payOption = r.pay_option || r.payment_mode;
+  if (r.amount_due) b.amountDue = r.amount_due;
   return b;
 }
 
@@ -260,6 +283,16 @@ const SETTINGS_FIELDS = {
   depositAmount: (v) => num(v, 'depositAmount', 0, 500),
   requireDeposit: (v) => bool(v, 'requireDeposit'),
   paymentLinkUrl: (v) => httpsUrl(v, 'paymentLinkUrl'),
+  // Which online payment options clients see (each one on by default until the manager turns it off).
+  depositEnabled: (v) => bool(v, 'depositEnabled'),
+  prepayEnabled: (v) => bool(v, 'prepayEnabled'),
+  walletEnabled: (v) => bool(v, 'walletEnabled'),
+  walletTopUps: (v) => {
+    if (!Array.isArray(v) || v.length < 1 || v.length > 6) fail('walletTopUps must have 1 to 6 amounts');
+    const out = v.map((n, i) => num(n, `walletTopUps[${i}]`, WALLET_MIN_TOPUP, WALLET_MAX_TOPUP, { int: true }));
+    if (new Set(out).size !== out.length) fail('walletTopUps must not repeat');
+    return out.sort((a, b) => a - b);
+  },
   reviewsAreSamples: (v) => bool(v, 'reviewsAreSamples'),
   reviews: (v) => list(v, 'reviews', 50).map((r, i) => ({
     name: text(r.name, `reviews[${i}].name`, 60) || 'Client',
@@ -384,7 +417,7 @@ export function validateBooking(body) {
   if (!TIME_SLOT.test(String(body.time))) return 'time must look like "09:00 AM"';
   if (!BARBER_ID.test(String(body.barberId))) return 'barberId is invalid';
   if (String(body.barberName).length > 80) return 'barberName is too long';
-  if (!['deposit', 'chair'].includes(body.paymentMode)) return 'paymentMode must be deposit or chair';
+  if (!PAY_OPTIONS.includes(body.paymentMode)) return 'paymentMode must be deposit, prepay, wallet or chair';
   if (!normalizePhone(body.clientPhone)) return 'clientPhone must contain digits';
   return null;
 }
@@ -405,19 +438,52 @@ async function createBooking(req, env) {
   if (shop && Array.isArray(shop.timeSlots) && shop.timeSlots.length && !shop.timeSlots.includes(String(body.time))) {
     return json({ error: "time is not one of this shop's time slots" }, 400);
   }
+  // Payment option: must be one the shop offers, and its amount is worked out here, never from the client.
+  const option = body.paymentMode;
+  const stripe = stripeKeyInfo(env);
+  if (shop && shop.requireDeposit && option === 'chair') return json({ error: 'This shop asks for payment when you book' }, 400);
+  if (option !== 'chair' && shop && shop[`${option}Enabled`] === false) return json({ error: `${option} payments are turned off for this shop` }, 400);
+  let totalCost = Number(body.totalCost) || 0;
+  if (option === 'prepay' || option === 'wallet') {
+    const priced = priceServices(shop, body.services);
+    if (priced.error) return json({ error: priced.error }, 400);
+    totalCost = priced.total;
+  }
+  if (option === 'prepay' && !stripe.usable) return json({ error: 'Online prepay is not set up for this shop yet' }, 503);
+  // Deposits go through Stripe Checkout when a test key is set; otherwise the old payment-link flow (client-sent amount).
+  const checkout = (option === 'deposit' && stripe.usable) || option === 'prepay';
+  let amountDue = 0;
+  if (option === 'deposit') {
+    amountDue = checkout ? depositFor(shop) : Number(body.depositAmount) || 0;
+    if (checkout && !(amountDue > 0)) return json({ error: 'This shop has no deposit amount set' }, 400);
+  } else if (option === 'prepay' || option === 'wallet') {
+    amountDue = totalCost;
+  }
+  if (checkout && Math.round(amountDue * 100) < 50) return json({ error: 'Online payments must be at least $0.50' }, 400);
+
+  let wallet = null;
+  if (option === 'wallet') {
+    if (!(amountDue > 0)) return json({ error: 'Nothing to pay from the wallet' }, 400);
+    const walletLimited = await rateLimit(env, `wallet:${clientKey(req)}`, WALLET_PER_HOUR, 3600);
+    if (walletLimited) return walletLimited;
+    wallet = await checkWalletPin(env, normalizePhone(body.clientPhone), body.walletPin, { mustExist: true });
+    if (wallet.response) return wallet.response;
+  }
+
   const limited = await rateLimit(env, `book:${clientKey(req)}`, BOOKINGS_PER_HOUR, 3600);
   if (limited) return limited;
 
-  const isDeposit = body.paymentMode === 'deposit';
+  const online = option !== 'chair';
   const phone = normalizePhone(body.clientPhone);
   const clientName = String(body.clientName).slice(0, 120);
   const clientPhone = String(body.clientPhone).slice(0, 40);
   const id = `${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 8)}`;
+  const createdAt = nowIso();
 
-  // One transaction: customer upsert + booking. If the slot is taken, the unique index fails the
-  // INSERT and the whole batch rolls back. Points are NOT awarded here: pay-at-chair bookings earn
-  // when the manager marks the visit Completed, deposits when the deposit is paid, so a script
-  // booking fake appointments earns nothing.
+  // One transaction: customer upsert + booking (+ wallet spend). If the slot is taken, the unique index fails
+  // the INSERT and the whole batch rolls back. Points are NOT awarded for unpaid bookings: pay-at-chair visits
+  // earn when the manager marks them Completed, online ones when the payment lands, so a script booking fake
+  // appointments earns nothing.
   for (let attempt = 0; attempt < 5; attempt++) {
     const refCode = 'EC-' + String(Math.floor(1000 + Math.random() * 9000)) + (attempt > 2 ? String(attempt) : '');
     const stmts = [
@@ -429,27 +495,304 @@ async function createBooking(req, env) {
       ).bind(phone, clientName, clientPhone, body.date),
       env.DB.prepare(
         `INSERT INTO bookings (id, ref_code, customer_phone, client_name, client_phone, services, total_cost, total_min,
-           barber_id, barber_name, date, time, notes, payment_mode, deposit_amount, status, paid, created_at)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, 0, ?17)`
+           barber_id, barber_name, date, time, notes, payment_mode, deposit_amount, status, paid, created_at,
+           pay_option, amount_due, paid_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)`
       ).bind(
         id, refCode, phone, clientName, clientPhone, JSON.stringify(body.services.map(String)),
-        Number(body.totalCost) || 0, Number(body.totalMin) || 0,
+        totalCost, Number(body.totalMin) || 0,
         String(body.barberId), barberName, body.date, String(body.time),
-        String(body.notes || '').slice(0, 500), body.paymentMode,
-        isDeposit ? Number(body.depositAmount) || 0 : 0,
-        isDeposit ? 'Deposit Unpaid' : 'Confirmed', nowIso()
+        String(body.notes || '').slice(0, 500), online ? 'deposit' : 'chair',
+        amountDue,
+        option === 'wallet' ? 'Paid' : online ? 'Deposit Unpaid' : 'Confirmed',
+        option === 'wallet' ? 1 : 0, createdAt, option, amountDue,
+        option === 'wallet' ? createdAt : null
       )
     ];
+    if (option === 'wallet') {
+      // Spend only if the balance covers it: otherwise the amount is NULL, the NOT NULL column refuses it
+      // and the whole batch (booking included) rolls back. Then award the paid-booking points.
+      stmts.push(env.DB.prepare(
+        `INSERT INTO wallet_ledger (phone, kind, amount_cents, booking_id, note)
+         VALUES (?1, 'spend', CASE WHEN (SELECT COALESCE(SUM(amount_cents), 0) FROM wallet_ledger WHERE phone = ?1) >= ?2
+                                   THEN -?2 ELSE NULL END, ?3, ?4)`
+      ).bind(phone, Math.round(amountDue * 100), id, refCode));
+      stmts.push(env.DB.prepare(
+        `INSERT OR IGNORE INTO loyalty_events (phone, booking_id, kind, points) VALUES (?1, ?2, 'deposit_paid', ?3)`
+      ).bind(phone, id, DEPOSIT_POINTS));
+    }
     try {
       await env.DB.batch(stmts);
-      return json({ booking: await getBooking(env, id) }, 201);
     } catch (err) {
       if (isSlotConflict(err)) return json({ error: 'That time is already booked' }, 409);
       if (isRefConflict(err)) continue; // 1-in-9000 ref collision: roll a new one
+      if (isWalletShort(err)) return json({ error: 'Not enough wallet credit for this booking. Top up in the VIP Wallet tab or pick another way to pay.' }, 402);
       throw err;
     }
+    if (!checkout) return json({ booking: await getBooking(env, id) }, 201);
+
+    // Stripe Checkout for the deposit or the full price. If Stripe can't be reached, drop the booking so the
+    // chair isn't held by a booking nobody can pay for.
+    const site = siteUrl(req, env);
+    const session = await createCheckoutSession(env, {
+      amountCents: Math.round(amountDue * 100),
+      name: option === 'prepay' ? `Prepaid: ${body.services.join(' + ')}`.slice(0, 250) : `Booking deposit ${refCode}`,
+      description: `${barberName}, ${body.date} at ${body.time}`.slice(0, 250),
+      refCode,
+      metadata: { kind: 'booking', booking_id: id, pay_option: option },
+      successUrl: `${site}/?tab=loyalty&paid=${encodeURIComponent(refCode)}`,
+      cancelUrl: `${site}/?tab=book&payment=cancelled&ref=${encodeURIComponent(refCode)}`,
+      idempotencyKey: `booking-${id}`
+    });
+    if (!session) {
+      await env.DB.prepare('DELETE FROM bookings WHERE id = ?').bind(id).run();
+      return json({ error: 'Could not start the online payment. Please try again or pick another way to pay.' }, 502);
+    }
+    await env.DB.prepare('UPDATE bookings SET stripe_session_id = ?1 WHERE id = ?2').bind(session.id, id).run();
+    return json({ booking: await getBooking(env, id), checkoutUrl: session.url, testMode: stripe.testMode }, 201);
   }
   return json({ error: 'Could not allocate a reference code, try again' }, 503);
+}
+
+// ---------- payments: Stripe Checkout + VIP wallet ----------
+const isWalletShort = (err) => /NOT NULL constraint failed: wallet_ledger\.amount_cents/.test(String(err && err.message || err));
+
+/** Which Stripe key may create Checkout pages. Only test keys, unless STRIPE_ALLOW_LIVE is "true". */
+export function stripeKeyInfo(env) {
+  const key = String(env.STRIPE_SECRET_KEY || '').trim();
+  if (!key) return { usable: false, testMode: false, reason: 'not_configured' };
+  const testMode = /^(sk|rk)_test_/.test(key);
+  if (!testMode && env.STRIPE_ALLOW_LIVE !== 'true') return { usable: false, testMode: false, reason: 'live_key_blocked' };
+  return { usable: true, testMode, key };
+}
+
+const depositFor = (shop) => (shop && typeof shop.depositAmount === 'number' ? shop.depositAmount : DEFAULT_DEPOSIT);
+
+/** Total price of the named services, from the shop's published price list. */
+export function priceServices(shop, names) {
+  if (!shop || !Array.isArray(shop.services) || !shop.services.length) {
+    return { error: 'The shop must publish its services (Manager Studio, Apply Settings) before clients can pay online in full' };
+  }
+  let total = 0;
+  for (const n of names) {
+    const s = shop.services.find((x) => x.name === String(n));
+    if (!s) return { error: `"${String(n).slice(0, 60)}" is not one of this shop's services` };
+    total += Number(s.price) || 0;
+  }
+  return { total: Math.round(total * 100) / 100 };
+}
+
+/** Where Stripe sends the client back to: the calling site when it's on the allow-list, else SITE_URL. */
+function siteUrl(req, env) {
+  const origin = req.headers.get('Origin');
+  if (origin && allowedOrigins(env).some((e) => e !== '*' && originMatches(e, origin))) return origin;
+  return String(env.SITE_URL || 'https://elite-cuts-barbershop.app').replace(/\/+$/, '');
+}
+
+/** POST /v1/checkout/sessions with an inline price. Returns { id, url } or null. */
+async function createCheckoutSession(env, { amountCents, name, description, refCode, metadata, successUrl, cancelUrl, idempotencyKey }) {
+  const { usable, key } = stripeKeyInfo(env);
+  if (!usable) return null;
+  const form = new URLSearchParams({
+    mode: 'payment',
+    'line_items[0][quantity]': '1',
+    'line_items[0][price_data][currency]': 'usd',
+    'line_items[0][price_data][unit_amount]': String(amountCents),
+    'line_items[0][price_data][product_data][name]': name,
+    success_url: successUrl,
+    cancel_url: cancelUrl,
+    expires_at: String(Math.floor(Date.now() / 1000) + CHECKOUT_MINUTES * 60)
+  });
+  if (description) form.set('line_items[0][price_data][product_data][description]', description);
+  if (refCode) form.set('client_reference_id', refCode);
+  for (const [k, v] of Object.entries(metadata || {})) {
+    form.set(`metadata[${k}]`, String(v));
+    form.set(`payment_intent_data[metadata][${k}]`, String(v));
+  }
+  try {
+    const res = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Idempotency-Key': idempotencyKey
+      },
+      body: form.toString()
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.id || !data.url) {
+      console.error('Stripe checkout failed', res.status, data && data.error && data.error.message);
+      return null;
+    }
+    return { id: data.id, url: data.url };
+  } catch (err) {
+    console.error('Stripe checkout failed', err);
+    return null;
+  }
+}
+
+async function paymentsInfo(env) {
+  const { settings: shop } = await loadShopSettings(env);
+  const stripe = stripeKeyInfo(env);
+  const walletOn = !shop || shop.walletEnabled !== false;
+  return json({
+    stripe: stripe.usable,
+    testMode: stripe.testMode,
+    liveKeyBlocked: stripe.reason === 'live_key_blocked',
+    options: {
+      deposit: !shop || shop.depositEnabled !== false,
+      prepay: stripe.usable && (!shop || shop.prepayEnabled !== false),
+      wallet: walletOn,
+      walletTopUp: stripe.usable && walletOn
+    },
+    depositAmount: depositFor(shop),
+    walletTopUps: (shop && shop.walletTopUps) || [25, 50, 100]
+  });
+}
+
+// Wallet PINs: PBKDF2-SHA256 with a random salt, so a leaked table doesn't give the PINs away cheaply.
+async function hashPin(pin, saltHex) {
+  const salt = saltHex || hex(crypto.getRandomValues(new Uint8Array(16)));
+  const key = await crypto.subtle.importKey('raw', enc.encode(String(pin)), 'PBKDF2', false, ['deriveBits']);
+  const bits = await crypto.subtle.deriveBits(
+    { name: 'PBKDF2', hash: 'SHA-256', salt: enc.encode(salt), iterations: PBKDF2_ITERATIONS }, key, 256);
+  return { hash: hex(bits), salt };
+}
+
+/**
+ * Checks the wallet PIN for a phone. An account without a PIN (new, or reset by the manager) takes the PIN
+ * sent as its new one. Wrong PINs lock that wallet for LOGIN_LOCK_MINUTES after WALLET_PIN_MAX_FAILS tries.
+ * Returns { account } or { response } (an error to send back).
+ */
+async function checkWalletPin(env, phone, pin, { mustExist = false, create = false, name = '' } = {}) {
+  if (!phone) return { response: json({ error: 'phone is required' }, 400) };
+  if (!WALLET_PIN.test(String(pin || ''))) return { response: json({ error: 'Wallet PIN must be 4 to 6 digits' }, 400) };
+  const lockKey = `wallet:${phone}`;
+  const now = nowIso();
+  const lock = await env.DB.prepare('SELECT fails, locked_until FROM login_attempts WHERE ip = ?').bind(lockKey).first();
+  if (lock && lock.locked_until && lock.locked_until > now) {
+    const retry = Math.max(1, Math.ceil((Date.parse(lock.locked_until) - Date.now()) / 1000));
+    return { response: json({ error: `Too many wrong PINs. Try again in ${Math.ceil(retry / 60)} minutes.` }, 429, { 'Retry-After': String(retry) }) };
+  }
+  let account = await env.DB.prepare('SELECT * FROM wallet_accounts WHERE phone = ?').bind(phone).first();
+  if (!account) {
+    if (mustExist || !create) return { response: json({ error: 'No wallet credit for this phone yet. Top up in the VIP Wallet tab first.' }, 404) };
+    const { hash, salt } = await hashPin(pin);
+    await env.DB.prepare('INSERT OR IGNORE INTO wallet_accounts (phone, name, pin_hash, pin_salt) VALUES (?1, ?2, ?3, ?4)')
+      .bind(phone, String(name || '').slice(0, 120), hash, salt).run();
+    account = await env.DB.prepare('SELECT * FROM wallet_accounts WHERE phone = ?').bind(phone).first();
+    return { account };
+  }
+  if (!account.pin_hash) {
+    const { hash, salt } = await hashPin(pin);
+    await env.DB.prepare('UPDATE wallet_accounts SET pin_hash = ?1, pin_salt = ?2, updated_at = ?3 WHERE phone = ?4 AND pin_hash IS NULL')
+      .bind(hash, salt, now, phone).run();
+    account = await env.DB.prepare('SELECT * FROM wallet_accounts WHERE phone = ?').bind(phone).first();
+  }
+  const { hash } = await hashPin(pin, account.pin_salt);
+  if (!timingSafeEqual(hash, account.pin_hash)) {
+    const fails = (lock && (!lock.locked_until || lock.locked_until <= now) ? lock.fails : 0) + 1;
+    const lockedUntil = fails >= WALLET_PIN_MAX_FAILS ? new Date(Date.now() + LOGIN_LOCK_MINUTES * 60000).toISOString() : null;
+    await env.DB.prepare(
+      `INSERT INTO login_attempts (ip, fails, locked_until, updated_at) VALUES (?1, ?2, ?3, ?4)
+       ON CONFLICT(ip) DO UPDATE SET fails = ?2, locked_until = ?3, updated_at = ?4`
+    ).bind(lockKey, lockedUntil ? 0 : fails, lockedUntil, now).run();
+    return { response: json({ error: 'Wrong wallet PIN' }, 401) };
+  }
+  if (lock) await env.DB.prepare('DELETE FROM login_attempts WHERE ip = ?').bind(lockKey).run();
+  return { account };
+}
+
+const walletBalanceCents = async (env, phone) =>
+  (await env.DB.prepare('SELECT COALESCE(SUM(amount_cents), 0) AS c FROM wallet_ledger WHERE phone = ?').bind(phone).first()).c;
+
+async function walletLookup(req, env) {
+  const limited = await rateLimit(env, `wallet:${clientKey(req)}`, WALLET_PER_HOUR, 3600);
+  if (limited) return limited;
+  const body = await readBody(req);
+  const phone = normalizePhone(body && body.phone);
+  const { response } = await checkWalletPin(env, phone, body && body.pin, { mustExist: true });
+  if (response) return response;
+  const { results } = await env.DB.prepare(
+    'SELECT kind, amount_cents, note, created_at FROM wallet_ledger WHERE phone = ? ORDER BY id DESC LIMIT 10'
+  ).bind(phone).all();
+  return json({
+    balance: (await walletBalanceCents(env, phone)) / 100,
+    history: results.map((r) => ({ kind: r.kind, amount: r.amount_cents / 100, note: r.note, at: r.created_at }))
+  });
+}
+
+async function walletTopUp(req, env) {
+  const limited = await rateLimit(env, `wallet:${clientKey(req)}`, WALLET_PER_HOUR, 3600);
+  if (limited) return limited;
+  const stripe = stripeKeyInfo(env);
+  if (!stripe.usable) return json({ error: 'Online top-ups are not set up for this shop yet' }, 503);
+  const { settings: shop } = await loadShopSettings(env);
+  if (shop && shop.walletEnabled === false) return json({ error: 'The VIP wallet is turned off for this shop' }, 400);
+  const body = await readBody(req);
+  const phone = normalizePhone(body && body.phone);
+  const amount = Number(body && body.amount);
+  if (!Number.isInteger(amount) || amount < WALLET_MIN_TOPUP || amount > WALLET_MAX_TOPUP) {
+    return json({ error: `Top-up must be a whole dollar amount from $${WALLET_MIN_TOPUP} to $${WALLET_MAX_TOPUP}` }, 400);
+  }
+  const { response } = await checkWalletPin(env, phone, body.pin, { create: true, name: body.name });
+  if (response) return response;
+  const site = siteUrl(req, env);
+  const session = await createCheckoutSession(env, {
+    amountCents: amount * 100,
+    name: `VIP wallet credit ($${amount})`,
+    description: `Store credit for ${String((shop && shop.shopName) || 'the shop').slice(0, 60)}`,
+    metadata: { kind: 'wallet_topup', phone },
+    successUrl: `${site}/?tab=loyalty&topup=ok`,
+    cancelUrl: `${site}/?tab=loyalty&topup=cancelled`,
+    idempotencyKey: `topup-${phone}-${crypto.randomUUID()}`
+  });
+  if (!session) return json({ error: 'Could not start the online payment. Please try again.' }, 502);
+  return json({ checkoutUrl: session.url, testMode: stripe.testMode });
+}
+
+async function managerWallets(env) {
+  const { results } = await env.DB.prepare(
+    `SELECT a.phone, a.name, a.pin_hash IS NOT NULL AS has_pin, COALESCE(SUM(l.amount_cents), 0) AS cents,
+            MAX(l.created_at) AS last_activity
+     FROM wallet_accounts a LEFT JOIN wallet_ledger l ON l.phone = a.phone
+     GROUP BY a.phone ORDER BY cents DESC LIMIT 500`
+  ).all();
+  return json({ wallets: results.map((r) => ({ phone: r.phone, name: r.name, balance: r.cents / 100, hasPin: !!r.has_pin, lastActivity: r.last_activity })) });
+}
+
+async function managerWalletAdjust(req, env, phoneParam) {
+  const phone = normalizePhone(phoneParam);
+  const body = await readBody(req);
+  const amount = Number(body && body.amount);
+  if (!phone) return json({ error: 'phone is required' }, 400);
+  if (!Number.isFinite(amount) || amount === 0 || Math.abs(amount) > 1000) return json({ error: 'amount must be a dollar amount from -1000 to 1000 (not 0)' }, 400);
+  const cents = Math.round(amount * 100);
+  const customer = await env.DB.prepare('SELECT name FROM customers WHERE phone = ?').bind(phone).first();
+  try {
+    await env.DB.batch([
+      env.DB.prepare('INSERT OR IGNORE INTO wallet_accounts (phone, name) VALUES (?1, ?2)').bind(phone, (customer && customer.name) || ''),
+      // A deduction can't take the balance below zero (same NULL trick as a booking spend).
+      env.DB.prepare(
+        `INSERT INTO wallet_ledger (phone, kind, amount_cents, note)
+         VALUES (?1, 'adjustment', CASE WHEN ?2 > 0 OR (SELECT COALESCE(SUM(amount_cents), 0) FROM wallet_ledger WHERE phone = ?1) >= -?2
+                                        THEN ?2 ELSE NULL END, ?3)`
+      ).bind(phone, cents, String((body && body.note) || 'Manager adjustment').slice(0, 200))
+    ]);
+  } catch (err) {
+    if (isWalletShort(err)) return json({ error: 'That would take the wallet below $0' }, 400);
+    throw err;
+  }
+  return json({ balance: (await walletBalanceCents(env, phone)) / 100 });
+}
+
+async function managerWalletResetPin(env, phoneParam) {
+  const phone = normalizePhone(phoneParam);
+  const r = await env.DB.prepare('UPDATE wallet_accounts SET pin_hash = NULL, pin_salt = NULL, updated_at = ?1 WHERE phone = ?2')
+    .bind(nowIso(), phone).run();
+  if (!r.meta || !r.meta.changes) return json({ error: 'No wallet for that phone' }, 404);
+  await env.DB.prepare('DELETE FROM login_attempts WHERE ip = ?').bind(`wallet:${phone}`).run();
+  return json({ ok: true });
 }
 
 async function markLate(req, env) {
@@ -536,6 +879,14 @@ async function managerPatchBooking(req, env, id) {
   if (body.status === 'Paid' && booking.paymentMode === 'deposit') await markPaid(env, id);
   try {
     const stmts = [env.DB.prepare('UPDATE bookings SET status = ?1, updated_at = ?2 WHERE id = ?3').bind(body.status, nowIso(), id)];
+    if (body.status === 'Cancelled' && booking.payOption === 'wallet') {
+      // A booking paid from the VIP wallet goes back on the wallet when it's cancelled (once per booking).
+      // Card payments (deposit / prepay) are refunded by the shop in the Stripe dashboard.
+      stmts.push(env.DB.prepare(
+        `INSERT OR IGNORE INTO wallet_ledger (phone, kind, amount_cents, booking_id, note)
+         SELECT phone, 'refund', -amount_cents, booking_id, note FROM wallet_ledger WHERE booking_id = ?1 AND kind = 'spend'`
+      ).bind(id));
+    }
     if (body.status === 'Completed' && booking.paymentMode === 'chair') {
       // Pay-at-chair visits earn their points once the barber confirms the visit happened (once per booking).
       stmts.push(env.DB.prepare(
@@ -609,16 +960,17 @@ export async function verifyStripeSignature(payload, header, secret, nowSec = Da
   return parts.filter((p) => p.startsWith('v1=')).some((p) => timingSafeEqual(p.slice(3), expected));
 }
 
-/** Fallback when no webhook secret is set: ask Stripe directly whether the session is really paid. */
-async function fetchPaidStripeSession(env, sessionId) {
+/** Fallback when no webhook secret is set: ask Stripe directly for the session (the event body can't be trusted). */
+async function fetchStripeSession(env, sessionId) {
   if (!/^cs_[A-Za-z0-9_]+$/.test(sessionId || '')) return null;
   const res = await fetch(`https://api.stripe.com/v1/checkout/sessions/${sessionId}`, {
     headers: { Authorization: `Bearer ${env.STRIPE_SECRET_KEY}` }
   });
   if (!res.ok) return null;
-  const session = await res.json();
-  return session.payment_status === 'paid' ? session : null;
+  return res.json();
 }
+
+const PAID_EVENTS = ['checkout.session.completed', 'checkout.session.async_payment_succeeded'];
 
 async function stripeWebhook(req, env) {
   const payload = await req.text();
@@ -631,15 +983,49 @@ async function stripeWebhook(req, env) {
   }
   let event;
   try { event = JSON.parse(payload); } catch { return json({ error: 'Invalid JSON' }, 400); }
-  if (event.type === 'checkout.session.completed') {
-    let session = event.data && event.data.object;
-    if (!env.STRIPE_WEBHOOK_SECRET) {
-      session = await fetchPaidStripeSession(env, session && session.id);
-      if (!session) return json({ error: 'Session not found or not paid' }, 400);
+  const isPaidEvent = PAID_EVENTS.includes(event.type);
+  if (!isPaidEvent && event.type !== 'checkout.session.expired') return json({ received: true });
+
+  let session = event.data && event.data.object;
+  if (!env.STRIPE_WEBHOOK_SECRET) {
+    session = await fetchStripeSession(env, session && session.id);
+    const ok = session && (isPaidEvent ? session.payment_status === 'paid' : session.status === 'expired');
+    if (!ok) return json({ error: isPaidEvent ? 'Session not found or not paid' : 'Session not found or not expired' }, 400);
+  }
+  if (!session) return json({ received: true });
+  const meta = session.metadata || {};
+
+  if (isPaidEvent) {
+    // A card payment can still be pending (completed with payment_status "unpaid"); its
+    // async_payment_succeeded event comes later.
+    if (session.payment_status === 'unpaid') return json({ received: true });
+    if (meta.kind === 'wallet_topup') {
+      const phone = normalizePhone(meta.phone);
+      const cents = Math.round(Number(session.amount_total));
+      if (phone && cents > 0 && session.id) {
+        await env.DB.batch([
+          env.DB.prepare('INSERT OR IGNORE INTO wallet_accounts (phone) VALUES (?)').bind(phone),
+          env.DB.prepare(
+            `INSERT OR IGNORE INTO wallet_ledger (phone, kind, amount_cents, stripe_session_id, note)
+             VALUES (?1, 'topup', ?2, ?3, 'Card top-up')`
+          ).bind(phone, cents, String(session.id))
+        ]);
+      }
+      return json({ received: true });
     }
-    const refCode = session && session.client_reference_id;
+    const refCode = session.client_reference_id;
     const row = refCode ? await env.DB.prepare('SELECT id FROM bookings WHERE ref_code = ?').bind(String(refCode)).first() : null;
     if (row) await markPaid(env, row.id);
+    return json({ received: true });
+  }
+
+  // checkout.session.expired: the client never paid, so free the chair. Only bookings this worker created the
+  // session for (matched by session id) and that are still unpaid; payment-link bookings are left alone.
+  if (session.id && meta.kind !== 'wallet_topup') {
+    await env.DB.prepare(
+      `UPDATE bookings SET status = 'Cancelled', updated_at = ?1
+       WHERE stripe_session_id = ?2 AND paid = 0 AND status = 'Deposit Unpaid'`
+    ).bind(nowIso(), String(session.id)).run();
   }
   return json({ received: true });
 }
@@ -666,7 +1052,13 @@ const routes = [
   ['GET', /^\/api\/manager\/report$/, (req, env, url) => managerReport(url, env), true],
   ['GET', /^\/api\/shop$/, (req, env) => getShop(env)],
   ['PUT', /^\/api\/manager\/shop$/, (req, env) => managerPutShop(req, env), true],
-  ['POST', /^\/api\/webhook\/stripe$/, (req, env) => stripeWebhook(req, env)]
+  ['POST', /^\/api\/webhook\/stripe$/, (req, env) => stripeWebhook(req, env)],
+  ['GET', /^\/api\/payments$/, (req, env) => paymentsInfo(env)],
+  ['POST', /^\/api\/wallet$/, (req, env) => walletLookup(req, env)],
+  ['POST', /^\/api\/wallet\/topup$/, (req, env) => walletTopUp(req, env)],
+  ['GET', /^\/api\/manager\/wallets$/, (req, env) => managerWallets(env), true],
+  ['POST', /^\/api\/manager\/wallets\/([^/]+)\/adjust$/, (req, env, url, m) => managerWalletAdjust(req, env, decodeURIComponent(m[1])), true],
+  ['POST', /^\/api\/manager\/wallets\/([^/]+)\/reset-pin$/, (req, env, url, m) => managerWalletResetPin(env, decodeURIComponent(m[1])), true]
 ];
 
 export default {

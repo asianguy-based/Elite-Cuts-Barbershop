@@ -68,7 +68,9 @@ Open apps (iPhone and Android home-screen installs and browser tabs) check for a
 cd worker
 npx wrangler d1 create elite-cuts                             # paste the returned database_id into wrangler.toml
 npx wrangler d1 execute elite-cuts --remote --file=schema.sql
+npx wrangler d1 migrations apply elite-cuts --remote          # online payments + VIP wallet tables (worker/migrations/)
 npx wrangler secret put MANAGER_PIN         # the real manager PIN
+npx wrangler secret put STRIPE_SECRET_KEY       # optional; a TEST key (sk_test_...) turns on Stripe Checkout
 npx wrangler secret put STRIPE_WEBHOOK_SECRET   # recommended; verifies signatures on /api/webhook/stripe
 npx wrangler deploy
 ```
@@ -78,6 +80,10 @@ Then open the app, go to **Manager Studio → Settings → API URL**, paste the 
 Endpoints: `GET /api/health`, `GET /api/slots?date=&barberId=`, `POST /api/bookings`, `GET /api/loyalty?phone=`, `POST /api/manager/login`, `POST /api/manager/logout`, `GET /api/manager/bookings?from=&to=`, `PATCH /api/manager/bookings/:id`, `GET /api/manager/loyalty.csv`, `GET /api/manager/report?from=&to=` (bookings, no-shows and revenue per barber per day), `GET /api/shop` (the published shop profile), `PUT /api/manager/shop` (publish it), `POST /api/bookings/late` (client says they are running late), `POST /api/webhook/stripe`. Manager routes require the `X-Manager-Token` header returned by login. Each login gets its own random token that lasts 12 hours or until logout (closing the Manager Studio logs out); only a hash of it is stored.
 
 **Stripe deposits:** the app opens your Payment Link with `client_reference_id=<refCode>`. Point a Stripe webhook for `checkout.session.completed` at `<worker-url>/api/webhook/stripe` and the booking is marked Paid and awarded its 150 pts automatically. Without the webhook, the manager can press **Paid** in the queue.
+
+**Online payments (Stripe Checkout):** with a Stripe secret key set on the Worker, clients can pick at booking: a **deposit** (amount set by the manager), **prepay in full** (priced on the server from the published services), **VIP wallet credit** (store credit per phone number, protected by a 4-6 digit PIN that the first top-up sets), or **pay at chair**. The manager turns each option on or off and sets the deposit and the wallet top-up amounts in **Settings → Online Payments**, and can add or remove wallet credit and reset a wallet PIN in the Studio. Deposits, prepay and top-ups go through Stripe Checkout created by the Worker; the webhook marks the booking Paid or credits the wallet, once. An unpaid checkout expires after about 30 minutes and its booking is cancelled, freeing the slot. Cancelling a wallet booking puts the credit back. Card refunds are done in the Stripe dashboard.
+
+Test mode only by default: the Worker creates Checkout only with a `sk_test_`/`rk_test_` key. A live key is ignored (the app falls back to the Payment Link) unless you also set the variable `STRIPE_ALLOW_LIVE="true"`. Add a webhook in the Stripe dashboard at `<worker-url>/api/webhook/stripe` for `checkout.session.completed`, `checkout.session.async_payment_succeeded` and `checkout.session.expired`. New endpoints: `GET /api/payments` (what's switched on), `POST /api/wallet` (balance + history, needs the PIN), `POST /api/wallet/topup`, `GET /api/manager/wallets`, `POST /api/manager/wallets/:phone/adjust`, `POST /api/manager/wallets/:phone/reset-pin`. Deploy the Worker (and run the migration) **before** the front end, then press **Apply Settings** once so the new settings are published.
 
 **Privacy note:** `GET /api/loyalty?phone=` returns points/stamps/recent visits to anyone who knows the phone number. That matches what the current app already exposes (the loyalty tab is a phone lookup), but if you need more, put the Worker behind Cloudflare Access or add an SMS check.
 
@@ -93,7 +99,7 @@ Endpoints: `GET /api/health`, `GET /api/slots?date=&barberId=`, `POST /api/booki
 
 **Upgrading an existing shop:** re-run `npx wrangler d1 execute elite-cuts --remote --file=schema.sql` before deploying this version (it adds the `manager_sessions`, `rate_limits` and `shop_settings` tables; existing data is untouched).
 
-**Tests:** `cd worker && npm test` runs the Worker end to end against the real `schema.sql` using Node 22+'s built-in SQLite (no Cloudflare account needed). `node --test tests/shared-settings.test.mjs` checks the app's settings code against that same Worker.
+**Tests:** `cd worker && npm test` runs the Worker end to end against the real `schema.sql` plus every migration (payments are tested against a fake Stripe) using Node 22+'s built-in SQLite (no Cloudflare account needed). `node --test tests/shared-settings.test.mjs` checks the app's settings code against that same Worker.
 
 ---
 

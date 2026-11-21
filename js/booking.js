@@ -1,4 +1,4 @@
-import { api, apiConfigured, escapeHtml } from './api.js';
+import { api, apiConfigured, escapeHtml, paymentsInfo } from './api.js';
 import { shopConfig } from './config.js';
 import { LoyaltyVault, bookings, loyaltyDB, normalizePhone, saveBookings, saveLoyaltyDB } from './storage.js';
 import { switchTab } from './ui.js';
@@ -17,28 +17,58 @@ export let currentBooking = {
   refCode: ''
 };
 
+// PAYMENT OPTIONS. deposit | prepay | wallet | chair. Prepay and wallet need the Worker with Stripe set up
+// (GET /api/payments says what works); demo mode keeps the old deposit link + pay at chair.
+export const PAY_MODE_BUTTONS = { deposit: 'payModeDepositBtn', prepay: 'payModePrepayBtn', wallet: 'payModeWalletBtn', chair: 'payModeChairBtn' };
+export const PENDING_PAYMENT_KEY = 'EC_PENDING_PAYMENT';
+
+export function availablePaymentModes() {
+  const opts = apiConfigured() && paymentsInfo ? paymentsInfo.options : null;
+  const modes = [];
+  if (shopConfig.depositEnabled !== false && (!opts || opts.deposit)) modes.push('deposit');
+  if (opts && opts.prepay && shopConfig.prepayEnabled !== false) modes.push('prepay');
+  if (opts && opts.wallet && shopConfig.walletEnabled !== false) modes.push('wallet');
+  if (!shopConfig.requireDeposit || !modes.length) modes.push('chair');   // never leave a client with no way to book
+  return modes;
+}
+
+const depositAmount = () => (paymentsInfo && paymentsInfo.stripe ? paymentsInfo.depositAmount : null) ?? (shopConfig.depositAmount || 15);
+
 export function selectPaymentMode(mode) {
-  if (shopConfig.requireDeposit && mode === 'chair') {
-    alert(`${shopConfig.shopName} requires a $${shopConfig.depositAmount || 15} deposit to lock in a chair.`);
-    return;
+  const modes = availablePaymentModes();
+  if (!modes.includes(mode)) {
+    if (mode === 'chair' && shopConfig.requireDeposit) {
+      alert(`${shopConfig.shopName} asks for payment when you book. Pick one of the online options.`);
+      return;
+    }
+    mode = modes[0];
   }
   currentBooking.paymentMode = mode;
-  const depBtn = document.getElementById('payModeDepositBtn');
-  const chrBtn = document.getElementById('payModeChairBtn');
-  const btnText = document.getElementById('submitBtnText');
-  const depAmt = shopConfig.depositAmount || 15;
+  const depAmt = depositAmount();
+  const { totalCost } = updateBookingTotals();
+  const stripeOn = !!(apiConfigured() && paymentsInfo && paymentsInfo.stripe);
 
+  Object.entries(PAY_MODE_BUTTONS).forEach(([m, id]) => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    const base = m === mode
+      ? 'p-2.5 rounded-xl border border-accent bg-white/10 text-left transition'
+      : 'p-2.5 rounded-xl border border-white/10 bg-secondary text-left transition opacity-70';
+    btn.className = base + (modes.includes(m) ? '' : ' hidden');
+  });
   document.getElementById('depositAmtLabel').textContent = depAmt;
+  document.getElementById('prepayAmtLabel').textContent = totalCost;
+  document.getElementById('depositViaLabel').textContent = stripeOn ? 'Card via Stripe' : 'Via Stripe / Square';
+  document.getElementById('walletPinRow').classList.toggle('hidden', mode !== 'wallet');
+  const usesStripe = mode === 'prepay' || (mode === 'deposit' && stripeOn);
+  document.getElementById('stripeTestNote').classList.toggle('hidden', !(usesStripe && paymentsInfo && paymentsInfo.testMode));
 
-  if (mode === 'deposit') {
-    depBtn.className = 'p-2.5 rounded-xl border border-accent bg-white/10 text-left transition';
-    chrBtn.className = 'p-2.5 rounded-xl border border-white/10 bg-secondary text-left transition opacity-70';
-    btnText.textContent = `Pay $${depAmt} Deposit & Reserve Chair (+150 Pts)`;
-  } else {
-    chrBtn.className = 'p-2.5 rounded-xl border border-accent bg-white/10 text-left transition';
-    depBtn.className = 'p-2.5 rounded-xl border border-white/10 bg-secondary text-left transition opacity-70';
-    btnText.textContent = `Confirm Appointment & Pay at Chair (+100 Pts after your visit)`;
-  }
+  document.getElementById('submitBtnText').textContent = {
+    deposit: `Pay $${depAmt} Deposit & Reserve Chair (+150 Pts)`,
+    prepay: `Pay $${totalCost} Now & Reserve Chair (+150 Pts)`,
+    wallet: `Pay $${totalCost} from Wallet & Reserve Chair (+150 Pts)`,
+    chair: 'Confirm Appointment & Pay at Chair (+100 Pts after your visit)'
+  }[mode];
 }
 
 export function quickBookService(serviceId) {
@@ -315,7 +345,7 @@ export function goToBookingStep(step) {
       <div class="flex justify-between"><span class="text-gray-400">Date & Time:</span><span class="text-accent font-bold">${escapeHtml(currentBooking.date)} @ ${escapeHtml(currentBooking.time)}</span></div>
       <div class="flex justify-between border-t border-white/10 pt-1.5 mt-1"><span class="text-gray-300 font-semibold">Total Service Value:</span><span class="text-accent font-extrabold text-sm">$${totalCost} (${totalMin} min)</span></div>
     `;
-    selectPaymentMode(shopConfig.requireDeposit ? 'deposit' : currentBooking.paymentMode);
+    selectPaymentMode(currentBooking.paymentMode);
   }
 }
 
@@ -332,8 +362,16 @@ export async function submitBooking() {
   const { totalCost, totalMin, selected } = updateBookingTotals();
   const barber = shopConfig.barbers.find(b => b.id === currentBooking.barberId) || shopConfig.barbers[0];
   let refCode = 'EC-' + Math.floor(1000 + Math.random() * 9000);
-  const isDeposit = currentBooking.paymentMode === 'deposit';
-  const pointsEarned = isDeposit ? 150 : 100;
+  const modes = availablePaymentModes();
+  const mode = modes.includes(currentBooking.paymentMode) ? currentBooking.paymentMode : modes[0];
+  const isDeposit = mode === 'deposit';
+  const isOnline = mode !== 'chair';
+  const pointsEarned = isOnline ? 150 : 100;
+  const walletPin = mode === 'wallet' ? document.getElementById('bookingWalletPin').value.trim() : '';
+  if (mode === 'wallet' && !/^[0-9]{4,6}$/.test(walletPin)) {
+    alert('Enter your 4-6 digit VIP Wallet PIN to pay from your wallet.');
+    return;
+  }
 
   let newBooking = {
     id: Date.now().toString(),
@@ -341,7 +379,7 @@ export async function submitBooking() {
     services: selected.map(s => s.name),
     totalCost,
     totalMin,
-    depositPaid: isDeposit ? (shopConfig.depositAmount || 15) : 0,
+    depositPaid: isDeposit ? depositAmount() : 0,
     barberId: barber.id,
     barberName: barber.name,
     date: currentBooking.date,
@@ -364,8 +402,9 @@ export async function submitBooking() {
           barberId: barber.id, barberName: barber.name,
           date: currentBooking.date, time: currentBooking.time,
           clientName: name, clientPhone: phone, notes,
-          paymentMode: currentBooking.paymentMode,
-          depositAmount: isDeposit ? (shopConfig.depositAmount || 15) : 0
+          paymentMode: mode,
+          depositAmount: isDeposit ? depositAmount() : 0,
+          ...(walletPin ? { walletPin } : {})
         }
       });
     } catch (err) {
@@ -380,18 +419,29 @@ export async function submitBooking() {
       return;
     }
     if (!res.ok || !res.data.booking) {
-      alert('Booking failed: ' + ((res.data && res.data.error) || `server error ${res.status}`));
+      const msg = (res.data && res.data.error) || `server error ${res.status}`;
+      alert(res.status === 401 || res.status === 402 ? msg : 'Booking failed: ' + msg);
       return;
     }
     newBooking = Object.assign({}, newBooking, res.data.booking, { depositPaid: 0 });
     refCode = newBooking.refCode;
-    pointsLabel = isDeposit
-      ? `+${pointsEarned} VIP PTS pending until deposit is paid`
+    pointsLabel = mode === 'wallet' ? `Paid from wallet • +${pointsEarned} VIP PTS`
+      : isOnline ? `+${pointsEarned} VIP PTS once your payment goes through`
       : `+${pointsEarned} VIP PTS after your visit`;
     // Local mirror only (receipt + offline slot hint); the server is the source of truth.
     bookings.unshift(newBooking);
     saveBookings();
     remoteBookedSlots.key = '';
+    if (res.data.checkoutUrl) {
+      // Stripe Checkout (deposit or prepay): the webhook marks the booking paid; Stripe sends the client back
+      // to ?paid=REF (or ?payment=cancelled), which main.js handles.
+      currentBooking.lastConfirmed = newBooking;
+      try {
+        sessionStorage.setItem(PENDING_PAYMENT_KEY, JSON.stringify({ refCode, phone, checkoutUrl: res.data.checkoutUrl }));
+      } catch (err) { /* private mode: the return page still works without it */ }
+      window.location.assign(res.data.checkoutUrl);
+      return;
+    }
   } else {
     bookings.unshift(newBooking);
     saveBookings();
@@ -412,7 +462,7 @@ export async function submitBooking() {
     saveLoyaltyDB();
   }
 
-  if (isDeposit && shopConfig.paymentLinkUrl) {
+  if (isDeposit && shopConfig.paymentLinkUrl && !(paymentsInfo && paymentsInfo.stripe)) {
     const sep = shopConfig.paymentLinkUrl.includes('?') ? '&' : '?';
     window.open(`${shopConfig.paymentLinkUrl}${sep}client_reference_id=${refCode}`, '_blank');
   }
@@ -424,6 +474,7 @@ export async function submitBooking() {
   document.getElementById('receiptDetailsText').textContent = `${selected.map(s => s.name).join(' + ')} with ${barber.name} on ${newBooking.date} at ${newBooking.time}.`;
   document.getElementById('bookConfirmation').classList.remove('hidden');
   document.getElementById('loyaltyLookupPhone').value = phone;
+  if (mode === 'wallet') document.getElementById('bookingWalletPin').value = '';
 }
 
 export function resetBookingFlow() {
