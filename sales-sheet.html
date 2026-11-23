@@ -68,14 +68,15 @@
         <p class="text-xs text-gray-300">Preventing just <b>two $45 no-shows per month</b> ($90 saved) more than pays for your entire monthly license.</p>
       </div>
       <div class="text-right shrink-0">
-        <span class="text-xs text-gray-300 block">Black Friday price</span>
-        <span class="text-sm text-gray-400 line-through mr-1">$4.99</span><span class="text-2xl font-extrabold text-[#d4af37]">$2.50/mo</span>
+        <span class="bf-only text-xs text-gray-300 block">Black Friday price</span>
+        <span class="bf-only"><span class="text-sm text-gray-400 line-through mr-1">$4.99</span><span class="text-2xl font-extrabold text-[#d4af37]">$2.50/mo</span></span>
+        <span class="regular-only hidden text-2xl font-extrabold text-[#d4af37]">$4.99/mo</span>
         <span class="text-[11px] text-gray-300 block">+ $39 one-time setup</span>
       </div>
     </div>
 
     <!-- Black Friday Offer -->
-    <div class="bg-[#d4af37]/10 border border-[#d4af37] rounded-2xl p-4 flex items-center gap-4">
+    <div class="bf-only bg-[#d4af37]/10 border border-[#d4af37] rounded-2xl p-4 flex items-center gap-4">
       <span class="text-[10px] uppercase tracking-widest bg-[#d4af37] text-[#1a1a2e] font-extrabold px-2.5 py-1 rounded shrink-0">Black Friday</span>
       <p class="text-xs text-gray-200">
         <b class="text-white">50% off the monthly fee for your first 12 months:</b> $2.50 a month instead of $4.99. Sign up <b>Mon Nov 23 through Mon Nov 30</b>. Setup stays $39, and month 13 goes back to $4.99.
@@ -109,5 +110,13 @@
     </div>
   </div>
 
+  <script>
+    // The Black Friday price shows through Mon Nov 30, 2026 (11:59 PM Eastern).
+    // From Dec 1 the sheet shows the regular $4.99/mo on its own, with no redeploy needed.
+    if (Date.now() >= Date.parse('2026-12-01T00:00:00-05:00')) {
+      document.querySelectorAll('.bf-only').forEach(function (el) { el.classList.add('hidden'); });
+      document.querySelectorAll('.regular-only').forEach(function (el) { el.classList.remove('hidden'); });
+    }
+  </script>
 </body>
 </html>
